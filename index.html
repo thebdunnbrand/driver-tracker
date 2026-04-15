@@ -2237,32 +2237,109 @@ function calcSett(){
 
 function renderSett(){
   const el=document.getElementById('sett-list');
-  el.innerHTML=settlements.map((s,i)=>`
+  el.innerHTML=settlements.map((s,i)=>{
+    const extras=s.extraServices||[];
+    const extrasTotal=extras.reduce((a,e)=>a+e.total,0);
+    const adjGross=s.adjustedGross!=null?s.adjustedGross:s.gross;
+    const adjNet=s.adjustedNet!=null?s.adjustedNet:s.net;
+    return`
     <div class="sc">
       <div class="sch" onclick="tgSC(${i})">
         <div style="flex:1;font-weight:600;font-size:13px">${s.name} <span style="font-family:monospace;font-size:10px;color:#aaa;font-weight:400">#${s.num}</span></div>
-        <div style="font-family:monospace;font-size:11px;color:#888">Gross $${s.gross.toFixed(2)}</div>
-        <div style="font-family:monospace;font-size:13px;font-weight:700;color:#1D9E75;margin-left:12px">Net $${s.net.toFixed(2)}</div>
+        <div style="font-family:monospace;font-size:11px;color:#888">Gross $${adjGross.toFixed(2)}</div>
+        <div style="font-family:monospace;font-size:13px;font-weight:700;color:#1D9E75;margin-left:12px">Net $${adjNet.toFixed(2)}</div>
         <div style="font-family:monospace;font-size:11px;margin-left:8px;color:#aaa">v</div>
       </div>
       <div class="scb" id="sc-${i}">
-        <div class="sr"><span class="sl">Gross Pay</span><span class="sv">$${s.gross.toFixed(2)}</span></div>
+        <div class="sr"><span class="sl">Gross Pay (base)</span><span class="sv">$${s.gross.toFixed(2)}</span></div>
         ${s.name===OWNER_DRIVER&&s.profitShare?`
         <div class="sr" style="padding-left:16px"><span class="sl" style="color:#888;font-size:10px">↳ Driver Pay</span><span class="sv" style="color:#888;font-size:10px">$${s.driverPay.toFixed(2)}</span></div>
         <div class="sr" style="padding-left:16px"><span class="sl" style="color:#1D9E75;font-size:10px">↳ 65% Profit Share</span><span class="sv" style="color:#1D9E75;font-size:10px">$${s.profitShare.toFixed(2)}</span></div>`:''}
-        <div class="sr"><span class="sl">Misc Deduction</span><span class="sv neg">− $${s.misc.toFixed(2)}</span></div>
-        <div class="sr"><span class="sl">OF Fee</span><span class="sv neg">− $${s.of.toFixed(2)}</span></div>
-        <div class="sr"><span class="sl">C&F Occ. Acc. (1.32%)</span><span class="sv neg">− $${s.cnf.toFixed(2)}</span></div>
-        <div class="sr"><span class="sl">Insurance Processing</span><span class="sv neg">− $${s.ins.toFixed(2)}</span></div>
-        <div class="sr"><span class="sl">Net Settlement</span><span class="sv net">$${s.net.toFixed(2)}</span></div>
-        <div class="pb"><div class="pbf" style="width:${Math.min(100,s.net/Math.max(s.gross,1)*100).toFixed(0)}%"></div></div>
-        <div style="font-family:monospace;font-size:9px;color:#aaa;margin-top:3px">Take-home: ${(s.net/Math.max(s.gross,1)*100).toFixed(1)}%</div>
+
+        ${extras.length?`
+        <div style="margin:8px 0 4px;font-family:monospace;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#888">Extra Services & Will Calls</div>
+        ${extras.map((e,ei)=>`
+        <div class="sr" style="background:#fafaf8;padding:4px 8px;border-radius:2px;margin-bottom:2px">
+          <span class="sl" style="font-size:10px">${e.account||'—'} <span style="color:#aaa">${e.type}</span></span>
+          <span class="sv" style="color:#D97706">$${e.total.toFixed(2)}</span>
+        </div>`).join('')}
+        <div class="sr" style="border-top:1px dashed #eee;margin-top:4px">
+          <span class="sl" style="color:#888;font-size:10px">Services Subtotal</span>
+          <span class="sv" style="color:#D97706">$${extrasTotal.toFixed(2)}</span>
+        </div>`:''}
+
+        <div style="margin:8px 0 4px;font-family:monospace;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#888;display:flex;align-items:center;justify-content:space-between">
+          <span>Manual Adjustment</span>
+          <button onclick="addSettAdj(${i})" style="border:none;background:none;color:#185FA5;font-size:9px;cursor:pointer;padding:0">+ Add</button>
+        </div>
+        <div id="sett-adjs-${i}">
+          ${(s.adjustments||[]).map((a,ai)=>`
+          <div class="sr" style="background:#EFF6FF;padding:4px 8px;border-radius:2px;margin-bottom:2px">
+            <span class="sl" style="font-size:10px">${a.label}</span>
+            <span style="display:flex;align-items:center;gap:4px">
+              <span class="sv" style="color:#185FA5">$${a.amount.toFixed(2)}</span>
+              <button onclick="removeSettAdj(${i},${ai})" style="border:none;background:none;color:#E85D24;font-size:10px;cursor:pointer;padding:0 2px">×</button>
+            </span>
+          </div>`).join('')}
+        </div>
+        ${s.adjustments&&s.adjustments.length?`<div class="sr" style="border-top:1px dashed #eee;margin-top:4px">
+          <span class="sl" style="color:#888;font-size:10px">Adjustments Subtotal</span>
+          <span class="sv" style="color:#185FA5">$${(s.adjustments||[]).reduce((a,x)=>a+x.amount,0).toFixed(2)}</span>
+        </div>`:''}
+
+        ${adjGross!==s.gross?`<div class="sr" style="border-top:2px solid #ddd;margin-top:6px;padding-top:6px">
+          <span class="sl" style="font-weight:700">Adjusted Gross</span>
+          <span class="sv" style="font-weight:700">$${adjGross.toFixed(2)}</span>
+        </div>`:''}
+        <div style="margin-top:8px;border-top:1px solid #eee;padding-top:8px">
+          <div class="sr"><span class="sl">Misc Deduction</span><span class="sv neg">− $${(s.adjMisc!=null?s.adjMisc:s.misc).toFixed(2)}</span></div>
+          <div class="sr"><span class="sl">OF Fee</span><span class="sv neg">− $${(s.adjOf!=null?s.adjOf:s.of).toFixed(2)}</span></div>
+          <div class="sr"><span class="sl">C&F Occ. Acc. (1.32%)</span><span class="sv neg">− $${(s.adjCnf!=null?s.adjCnf:s.cnf).toFixed(2)}</span></div>
+          <div class="sr"><span class="sl">Insurance Processing</span><span class="sv neg">− $${(s.adjIns!=null?s.adjIns:s.ins).toFixed(2)}</span></div>
+          <div class="sr"><span class="sl" style="font-weight:700">Net Settlement</span><span class="sv net" style="font-size:14px">$${adjNet.toFixed(2)}</span></div>
+        </div>
+        <div class="pb"><div class="pbf" style="width:${Math.min(100,adjNet/Math.max(adjGross,1)*100).toFixed(0)}%"></div></div>
+        <div style="font-family:monospace;font-size:9px;color:#aaa;margin-top:3px">Take-home: ${(adjNet/Math.max(adjGross,1)*100).toFixed(1)}%</div>
         <div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #eee;flex-wrap:wrap">
           <button class="btn grn" style="font-size:10px;padding:6px 14px" onclick="printSettlement(${i})">Print / Save PDF</button>
           <button class="btn" style="font-size:10px;padding:6px 14px;color:#185FA5;border-color:#185FA5" onclick="emailSettlement(${i})">Email to Driver</button>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+function addSettAdj(i) {
+  const label = prompt('Description (e.g. "Will Call — Antech", "Waiting Time"):');
+  if (!label) return;
+  const amtStr = prompt('Amount ($):');
+  if (!amtStr) return;
+  const amount = parseFloat(amtStr);
+  if (isNaN(amount)) { toast('Invalid amount'); return; }
+  const s = settlements[i];
+  if (!s.adjustments) s.adjustments = [];
+  s.adjustments.push({ label, amount });
+  recalcSettAdj(i);
+  renderSett();
+}
+
+function removeSettAdj(i, ai) {
+  const s = settlements[i];
+  if (!s.adjustments) return;
+  s.adjustments.splice(ai, 1);
+  recalcSettAdj(i);
+  renderSett();
+}
+
+function recalcSettAdj(i) {
+  const s = settlements[i];
+  const extras = (s.extraServices || []).reduce((a, e) => a + e.total, 0);
+  const adjs   = (s.adjustments   || []).reduce((a, e) => a + e.amount, 0);
+  const newGross = +(s.gross + adjs).toFixed(2);
+  const ded = calcDed(newGross);
+  s.adjustedGross = newGross;
+  s.adjMisc = ded.misc; s.adjOf = ded.of; s.adjCnf = ded.cnf; s.adjIns = ded.ins;
+  s.adjustedNet = ded.net;
 }
 
 function getWeekEnd(wkStart){
@@ -2387,15 +2464,23 @@ ${(s.stats||[]).length>0?`<table><tbody><tr class="sub-row"><td>Stat / Same-Day 
 <div class="sec-title" style="margin-top:22px">Deductions & Net Settlement</div>
 <table>
   <tbody>
-    <tr class="gross-row"><td>Gross Earnings</td><td class="r">$${s.gross.toFixed(2)}</td></tr>
+    <tr class="gross-row"><td>Gross Earnings (Base)</td><td class="r">$${s.gross.toFixed(2)}</td></tr>
     ${s.name===OWNER_DRIVER&&s.profitShare?`
     <tr><td style="padding:3px 10px 3px 24px;font-size:10px;color:#555">Driver Pay</td><td style="padding:3px 10px;font-size:10px;text-align:right;color:#555">$${s.driverPay.toFixed(2)}</td></tr>
     <tr><td style="padding:3px 10px 5px 24px;font-size:10px;color:#1D9E75">65% Owner Profit Share</td><td style="padding:3px 10px 5px;font-size:10px;text-align:right;color:#1D9E75">$${s.profitShare.toFixed(2)}</td></tr>`:''}
-    <tr class="ded-row"><td class="ded-neg">Misc Deduction</td><td class="r ded-neg">− $${s.misc.toFixed(2)}</td></tr>
-    <tr class="ded-row"><td class="ded-neg">OF Fee</td><td class="r ded-neg">− $${s.of.toFixed(2)}</td></tr>
-    <tr class="ded-row"><td class="ded-neg">C&F Occupational Accident (1.32%)</td><td class="r ded-neg">− $${s.cnf.toFixed(2)}</td></tr>
-    <tr class="ded-row"><td class="ded-neg">Insurance Processing Fee</td><td class="r ded-neg">− $${s.ins.toFixed(2)}</td></tr>
-    <tr class="net-row"><td>Net Settlement — ${s.name}</td><td class="r">$${s.net.toFixed(2)}</td></tr>
+    ${(s.extraServices||[]).length?`
+    <tr><td colspan="2" style="padding:6px 10px 2px;font-family:monospace;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#888">Extra Services & Will Calls</td></tr>
+    ${(s.extraServices||[]).map(e=>`<tr><td style="padding:2px 10px 2px 20px;font-size:10px;color:#555">${e.account||''} — ${e.type}</td><td style="padding:2px 10px;font-size:10px;text-align:right;color:#D97706">$${e.total.toFixed(2)}</td></tr>`).join('')}
+    <tr><td style="padding:2px 10px 6px 20px;font-size:10px;font-weight:600;color:#555">Services Subtotal</td><td style="padding:2px 10px 6px;font-size:10px;text-align:right;font-weight:600;color:#D97706">$${(s.servicesTotal||0).toFixed(2)}</td></tr>`:''}
+    ${(s.adjustments||[]).length?`
+    <tr><td colspan="2" style="padding:6px 10px 2px;font-family:monospace;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#888">Manual Adjustments</td></tr>
+    ${(s.adjustments||[]).map(a=>`<tr><td style="padding:2px 10px 2px 20px;font-size:10px;color:#555">${a.label}</td><td style="padding:2px 10px;font-size:10px;text-align:right;color:#185FA5">$${a.amount.toFixed(2)}</td></tr>`).join('')}`:''}
+    ${s.adjustedGross&&s.adjustedGross!==s.gross?`<tr class="gross-row"><td>Adjusted Gross</td><td class="r">$${s.adjustedGross.toFixed(2)}</td></tr>`:''}
+    <tr class="ded-row"><td class="ded-neg">Misc Deduction</td><td class="r ded-neg">− $${(s.adjMisc!=null?s.adjMisc:s.misc).toFixed(2)}</td></tr>
+    <tr class="ded-row"><td class="ded-neg">OF Fee</td><td class="r ded-neg">− $${(s.adjOf!=null?s.adjOf:s.of).toFixed(2)}</td></tr>
+    <tr class="ded-row"><td class="ded-neg">C&F Occupational Accident (1.32%)</td><td class="r ded-neg">− $${(s.adjCnf!=null?s.adjCnf:s.cnf).toFixed(2)}</td></tr>
+    <tr class="ded-row"><td class="ded-neg">Insurance Processing Fee</td><td class="r ded-neg">− $${(s.adjIns!=null?s.adjIns:s.ins).toFixed(2)}</td></tr>
+    <tr class="net-row"><td>Net Settlement — ${s.name}</td><td class="r">$${(s.adjustedNet!=null?s.adjustedNet:s.net).toFixed(2)}</td></tr>
   </tbody>
 </table>
 
@@ -6630,18 +6715,32 @@ function parseJSON(data, fileName) {
   const settlements = data.settlements || [];
   const wkStart = data.wkStart || '';
   const settDate = data.settDate || '';
-  const stats2 = data._stats || {};
+  const missingDrivers = data.missingDrivers || [];
 
   if (!routes.length && !stats.length && !settlements.length) {
     setImportStatus('error','✕ Empty import file','The JSON file contained no route entries, stat entries, or settlements.',false);
     return;
   }
 
+  // Auto-add missing drivers to roster
+  let newDriversAdded = 0;
+  missingDrivers.forEach(d => {
+    if (!DRIVERS.find(x => x.n.toLowerCase() === d.name.toLowerCase())) {
+      DRIVERS.push({ n: d.name, id: d.num || '', email: '', phone: '' });
+      newDriversAdded++;
+    }
+  });
+  if (newDriversAdded) { save(); refreshAllDriverDropdowns(); renderDriverTable(); }
+
   _importParsed = { routes, stats, discs:[], settlements, wkStart, settDate };
 
   const driverSet = [...new Set([...routes,...stats].map(e=>e.driver))];
   const totalLL   = [...routes,...stats].reduce((s,e)=>s+e.ll,0);
   const totalDP   = [...routes,...stats].reduce((s,e)=>s+e.dp,0);
+
+  // Count extra services across all settlements
+  const withExtras = settlements.filter(s => s.extraServices && s.extraServices.length > 0);
+  const totalExtras = settlements.reduce((a,s)=>a+(s.servicesTotal||0),0);
 
   const bodyHTML = `
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px">
@@ -6671,8 +6770,13 @@ function parseJSON(data, fileName) {
       &nbsp;·&nbsp; Settlement <span style="color:#6ee7b7">${settDate||'—'}</span>
       &nbsp;·&nbsp; ${driverSet.length} drivers: <span style="color:#aaa">${driverSet.slice(0,8).join(', ')}${driverSet.length>8?'…':''}</span>
     </div>
-    ${settlements.length ? `<div style="font-size:9px;color:#6ee7b7">✓ ${settlements.length} driver settlements included from workbook totals</div>` : ''}
-    <div style="font-size:9px;color:#fbbf24;margin-top:4px">⚠ Select import mode below then click Confirm Import</div>`;
+    ${withExtras.length ? `<div style="font-size:9px;color:#D97706;margin-top:4px">
+      ⚑ ${withExtras.length} driver${withExtras.length!==1?'s':''} have Extra Services / Will Calls totaling $${totalExtras.toFixed(2)} — 
+      these are imported and shown on each settlement card. You can add further manual adjustments after importing.
+    </div>` : ''}
+    ${newDriversAdded ? `<div style="font-size:9px;color:#6ee7b7;margin-top:4px">✓ ${newDriversAdded} new driver${newDriversAdded!==1?'s':''} added to roster from import</div>` : ''}
+    ${settlements.length ? `<div style="font-size:9px;color:#6ee7b7;margin-top:4px">✓ ${settlements.length} driver settlements included from invoice sheets</div>` : ''}
+    <div style="font-size:9px;color:#fbbf24;margin-top:4px">⚠ Select import mode below then click Confirm Import. After importing, open Settlements and add any remaining manual adjustments per driver.</div>`;
 
   // Always sync the wk picker and import date field to the file's week
   // so that "Load This Week from Template" uses the correct dates

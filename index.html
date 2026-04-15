@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- BDash v2026-04-15 16:29:35 -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2221,9 +2221,23 @@ function calcSett(){
     if(e.type==='route') by[e.driver].routes.push(e);
     else by[e.driver].stats.push(e);
   });
+
+  // Build a lookup of any already-imported settlements so we preserve their correct values
+  const importedMap={};
+  settlements.forEach(s=>{ if(s.gross||s.net) importedMap[s.name]=s; });
+
   settlements=Object.entries(by).map(([name,d])=>{
+    // If we have an imported settlement for this driver, use its gross/net/extras
+    const imp=importedMap[name];
+    if(imp){
+      return{
+        ...imp,
+        routes:d.routes, stats:d.stats,
+        driverPay:+d.driverPay.toFixed(2),
+        num:d.num||imp.num
+      };
+    }
     if(name===OWNER_DRIVER){
-      // Barry's gross = his driver pay + 65% of TOTAL company profit (all drivers)
       const profitShare=+(totalCompanyPf*OWNER_PROFIT_SHARE).toFixed(2);
       const gross=+(d.driverPay+profitShare).toFixed(2);
       const ded=calcDed(gross);
@@ -2231,6 +2245,16 @@ function calcSett(){
     }
     return{name,num:d.num,routes:d.routes,stats:d.stats,...calcDed(d.driverPay)};
   }).sort((a,b)=>a.name.localeCompare(b.name));
+
+  // Also include any imported settlements for drivers with no entries this week
+  // (e.g. Brittney Hill, Cheyenne Franklin — paid but no route/stat entries in file)
+  Object.values(importedMap).forEach(imp=>{
+    if(!settlements.find(s=>s.name===imp.name)){
+      settlements.push(imp);
+    }
+  });
+  settlements.sort((a,b)=>a.name.localeCompare(b.name));
+
   renderSett();renderGusto();updateSum();sw('settlement');
   showLLFinalizeBtn();
 }
@@ -6608,7 +6632,6 @@ function commitLLImport() {
     const importWk = _importParsed.wkStart;
     if (!importWk) { toast('No week date in import file.'); return; }
 
-    // Build the 7 dates for this pay period
     const base = new Date(importWk + 'T12:00:00');
     const weekDates = [];
     for (let i = 0; i < 7; i++) {
@@ -6616,23 +6639,29 @@ function commitLLImport() {
       weekDates.push(d.toISOString().slice(0, 10));
     }
 
-    if (!confirm(`This will replace all route and stat entries for the week of ${importWk} with ${routes.length} route + ${stats.length} stat entries from the import.\n\nEntries from other weeks are not affected.`)) return;
+    const importedSetts = _importParsed.settlements || [];
+    if (!confirm(`This will replace all route, stat, and settlement entries for the week of ${importWk}.\n\n• ${routes.length} route entries\n• ${stats.length} stat entries\n• ${importedSetts.length} driver settlements\n\nEntries from other weeks are not affected.`)) return;
 
-    // Remove only entries that belong to this specific week
+    // Replace routes and stats for this week only
     routeEntries = routeEntries.filter(e => !weekDates.includes(e.date));
     sdEntries    = sdEntries.filter(e => !weekDates.includes(e.date));
-
-    // Add the imported entries for this week
     routeEntries = [...routeEntries, ...routes];
     sdEntries    = [...sdEntries, ...stats];
     if (discs.length) discEntries.unshift(...discs);
 
-    // Set the week picker to this week so template and display align
+    // Load settlements directly from JSON — these are the correct values
+    if (importedSetts.length) {
+      settlements = importedSetts;
+      renderSett();
+      renderGusto();
+    }
+
     document.getElementById('wk').value = importWk;
     localStorage.setItem('rdt_wk', importWk);
 
     save(); updateSum(); renderSdAll(); buildRouteTemplate();
-    toast(`✓ Week of ${importWk} replaced — ${routes.length} routes + ${stats.length} stat entries loaded`);
+    if (importedSetts.length) sw('settlement');
+    toast(`✓ Week of ${importWk} loaded — ${routes.length} routes, ${stats.length} stat entries, ${importedSetts.length} settlements`);
 
   } else if (mode === 'append') {
     if (!confirm(`Append ${total} entries to the current week?`)) return;
@@ -6796,18 +6825,12 @@ function parseJSON(data, fileName) {
 function downloadConverterScript() {
   const script = `#!/usr/bin/env python3
 """
-BDash Logistics — Workbook Converter
-Converts Weekly_Route_to_Driver_Tracker.xlsm → workbook_import.json
-for import into the BDash Driver Tracker dashboard.
-
-Usage:
-  python bdash_converter.py <path_to_your_workbook.xlsm>
-
-Requirements:
-  pip install openpyxl
-
-Output:
-  workbook_import.json  (drop this file into the Import panel in the dashboard)
+BDash Logistics — Workbook Converter v3
+Reads individual Invoice sheets (not just Bdash Total) to capture:
+  - Correct weekly totals per driver
+  - Extra Services & Will Calls per driver
+  - Missing drivers not yet in the roster
+Usage: python3 bdash_converter.py <workbook.xlsm or .xlsx>
 """
 import sys, json, re, datetime
 from pathlib import Path
@@ -6815,18 +6838,17 @@ from pathlib import Path
 try:
     from openpyxl import load_workbook
 except ImportError:
-    print("ERROR: openpyxl not installed. Run:  pip install openpyxl")
-    sys.exit(1)
+    print("ERROR: pip install openpyxl"); sys.exit(1)
+
+OWNER_NAME         = 'Barry Dunn'
+OWNER_PROFIT_SHARE = 0.65
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python bdash_converter.py <workbook.xlsm>")
-        sys.exit(1)
-
+        print("Usage: python3 bdash_converter.py <workbook>"); sys.exit(1)
     path = Path(sys.argv[1])
     if not path.exists():
-        print(f"ERROR: File not found: {path}")
-        sys.exit(1)
+        print(f"ERROR: File not found: {path}"); sys.exit(1)
 
     print(f"Reading {path.name}...")
     wb = load_workbook(str(path), keep_vba=False, data_only=True)
@@ -6840,7 +6862,14 @@ def main():
                 except: pass
         return None
 
-    # 1. Drivers
+    def calc_ded(gross):
+        misc = 0   if gross < 200 else 5
+        of_  = 0   if gross <= 200 else (10.25 if gross <= 400 else 14.25)
+        cnf  = round(gross * 0.0132, 2) if gross >= 200 else 0
+        ins  = 0   if gross < 200 else 2
+        return {'misc':misc,'of':of_,'cnf':cnf,'ins':ins,'net':round(gross-misc-of_-cnf-ins,2)}
+
+    # ── 1. Driver Sheet ───────────────────────────────────────────────────
     driver_map = {}
     if 'Driver Sheet' in sheets:
         ws = wb['Driver Sheet']
@@ -6848,155 +6877,220 @@ def main():
             n = ws.cell(r,2).value; num = ws.cell(r,3).value
             if n and str(n).strip() not in ('','Choose Driver'):
                 driver_map[str(n).strip()] = str(int(num)) if isinstance(num,(int,float)) else str(num or '')
-    print(f"  Drivers: {len(driver_map)}")
+    print(f"  Drivers in roster: {len(driver_map)}")
 
-    # 2. Route Prices
-    DCOLS = {'sun':(3,4),'mon':(5,6),'tue':(7,8),'wed':(9,10),'thu':(11,12),'fri':(13,14),'sat':(15,16)}
+    # ── 2. Route Prices ───────────────────────────────────────────────────
+    DAY_COLS = {'sun':(3,4),'mon':(5,6),'tue':(7,8),'wed':(9,10),'thu':(11,12),'fri':(13,14),'sat':(15,16)}
     route_prices = {}
     if 'Route Prices' in sheets:
         ws = wb['Route Prices']
         for r in range(6, 55):
             rn = ws.cell(r,2).value
             if not rn or not isinstance(rn,str): continue
-            route_prices[rn.strip().upper()] = {}
-            for day,(lc,dc) in DCOLS.items():
-                ll = ws.cell(r,lc).value; dp = ws.cell(r,dc).value
-                if ll or dp:
-                    route_prices[rn.strip().upper()][day] = [float(ll or 0),float(dp or 0)]
+            key = rn.strip().upper(); route_prices[key] = {}
+            for day,(lc,dc) in DAY_COLS.items():
+                ll=ws.cell(r,lc).value; dp=ws.cell(r,dc).value
+                if ll or dp: route_prices[key][day]=[float(ll or 0),float(dp or 0)]
 
-    # 3. Route Tracking
+    # ── 3. Route Tracking ─────────────────────────────────────────────────
     DAYS = ['sun','mon','tue','wed','thu','fri','sat']
-    route_entries, wk_start, sett_date = [], None, None
+    route_entries = []; wk_start = None; sett_date = None
     if 'Route Tracking' in sheets:
         ws = wb['Route Tracking']
         day_dates = [fmt(ws.cell(6,c).value) for c in range(3,10)]
         wk_start  = day_dates[0]
         sett_date = fmt(ws.cell(5,6).value)
-        for r in range(8, 42):
+        for r in range(8,42):
             rn = ws.cell(r,2).value
-            if not rn or not isinstance(rn,str) or rn.strip()=='0': continue
-            rn = rn.strip()
-            for di, day in enumerate(DAYS):
+            if not rn or not isinstance(rn,str) or str(rn).strip()=='0': continue
+            rn = str(rn).strip()
+            for di,day in enumerate(DAYS):
                 drv = ws.cell(r,3+di).value
                 if not drv or str(drv).strip() in ('','Choose Driver','Choose Driver '): continue
-                drv = str(drv).strip(); date = day_dates[di]
+                drv=str(drv).strip(); date=day_dates[di]
                 if not date: continue
-                prices = route_prices.get(rn.upper(),{}).get(day,[0,0])
-                ll,dp = prices
+                prices=route_prices.get(rn.upper(),{}).get(day,[0,0]); ll,dp=prices
                 route_entries.append({'id':10000+len(route_entries),'driver':drv,
                     'driverNum':driver_map.get(drv,''),'date':date,'type':'route','route':rn,
                     'locName':'','pu':'','dl':'','cutoff':'','ll':ll,'dp':dp,'pf':round(ll-dp,2),'notes':''})
     print(f"  Route entries: {len(route_entries)}")
 
-    # 4. Stat sheets — using exact confirmed column positions:
-    # Bako/Dekalb/Aptive: col1=DrvNum, col2=DrvName, col3=Date, col4=PickupLoc, col5=Type, col6=LL, col7=DP, col8=Profit
-    # On-Demand:          col1=DrvNum, col2=DrvName, col3=Date, col4=Account,    col5=Pickup, col6=Delivery, col7=LL, col8=DP, col9=Profit
+    # ── 4. Stat Sheets ────────────────────────────────────────────────────
     stat_entries = []
+    SKIP = ('','Choose Driver','Choose Driver ','Choose Pick Up Location','Choose Pick Up Location ')
 
-    BAKO_DEKALB_APTIVE = [
-        ('Bako Monday','bako'),('Bako Tuesday','bako'),('Bako Wednesday','bako'),
-        ('Bako Thursday','bako'),('Bako Friday','bako'),
-        ('Dekalb Monday','dekalb'),('Dekalb Tuesday','dekalb'),('Dekalb Wednesday','dekalb'),
-        ('Dekalb Thursday','dekalb'),('Dekalb Friday','dekalb'),
-        ('Aptive Sunday','aptive-sun'),
-        ('Aptive Monday','aptive-wkd'),('Aptive Tuesday','aptive-wkd'),
-        ('Aptive Wednesday','aptive-wkd'),('Aptive Thursday','aptive-wkd'),('Aptive Friday','aptive-wkd'),
-    ]
-    for sname, tkey in BAKO_DEKALB_APTIVE:
+    BDA = [('Bako Monday','bako'),('Bako Tuesday','bako'),('Bako Wednesday','bako'),
+           ('Bako Thursday','bako'),('Bako Friday','bako'),
+           ('Dekalb Monday','dekalb'),('Dekalb Tuesday','dekalb'),('Dekalb Wednesday','dekalb'),
+           ('Dekalb Thursday','dekalb'),('Dekalb Friday','dekalb'),
+           ('Aptive Sunday','aptive-sun'),('Aptive Monday','aptive-wkd'),('Aptive Tuesday','aptive-wkd'),
+           ('Aptive Wednesday','aptive-wkd'),('Aptive Thursday','aptive-wkd'),('Aptive Friday','aptive-wkd')]
+    for sname,tkey in BDA:
         if sname not in sheets: continue
         ws = wb[sname]
-        for r in range(7, 60):
-            dn = ws.cell(r,2).value
-            if not dn or str(dn).strip() in ('','Choose Driver','Choose Driver '): continue
-            dt = fmt(ws.cell(r,3).value)
+        for r in range(7,60):
+            dn=ws.cell(r,2).value
+            if not dn or str(dn).strip() in SKIP: continue
+            dt=fmt(ws.cell(r,3).value)
             if not dt: continue
-            dnum_raw = ws.cell(r,1).value
-            dnum = str(int(dnum_raw)) if isinstance(dnum_raw,(int,float)) and dnum_raw else driver_map.get(str(dn).strip(),'')
-            loc = str(ws.cell(r,4).value or '').replace('\\xa0','').strip()
-            if loc in ('Choose Pick Up Location','Choose Pick Up Location '): loc=''
-            tv  = str(ws.cell(r,5).value or '').strip()
-            ll  = float(ws.cell(r,6).value or 0)
-            dp  = float(ws.cell(r,7).value or 0)
-            pf  = float(ws.cell(r,8).value or 0) or round(ll-dp,2)
+            dnum_raw=ws.cell(r,1).value
+            dnum=str(int(dnum_raw)) if isinstance(dnum_raw,(int,float)) and dnum_raw else driver_map.get(str(dn).strip(),'')
+            loc=str(ws.cell(r,4).value or '').replace('\xa0','').strip()
+            if loc in SKIP: loc=''
+            tv=str(ws.cell(r,5).value or '').strip()
+            ll=float(ws.cell(r,6).value or 0); dp=float(ws.cell(r,7).value or 0)
+            pf=float(ws.cell(r,8).value or 0) or round(ll-dp,2)
             if not loc and not ll and not dp: continue
             stat_entries.append({'id':15000+len(stat_entries),'driver':str(dn).strip(),'driverNum':dnum,
                 'date':dt,'type':tkey,'route':'','locName':tv or loc,'pu':loc,'dl':'','cutoff':'',
                 'll':ll,'dp':dp,'pf':round(pf,2),'notes':''})
 
-    OD_SHEETS = [
-        ('On-Demand Sunday','ondemand'),('On-Demand Monday','ondemand'),('On-Demand Tuesday','ondemand'),
-        ('On-Demand Wednesday','ondemand'),('On-Demand Thursday','ondemand'),
-        ('On-Demand Friday','ondemand'),('On-Demand Saturday','ondemand'),
-    ]
-    for sname, tkey in OD_SHEETS:
+    OD = [('On-Demand Sunday','ondemand'),('On-Demand Monday','ondemand'),('On-Demand Tuesday','ondemand'),
+          ('On-Demand Wednesday','ondemand'),('On-Demand Thursday','ondemand'),
+          ('On-Demand Friday','ondemand'),('On-Demand Saturday','ondemand')]
+    for sname,tkey in OD:
         if sname not in sheets: continue
         ws = wb[sname]
-        for r in range(7, 60):
-            dn = ws.cell(r,2).value
-            if not dn or str(dn).strip() in ('','Choose Driver','Choose Driver '): continue
-            dt = fmt(ws.cell(r,3).value)
+        for r in range(7,60):
+            dn=ws.cell(r,2).value
+            if not dn or str(dn).strip() in SKIP: continue
+            dt=fmt(ws.cell(r,3).value)
             if not dt: continue
-            dnum_raw = ws.cell(r,1).value
-            dnum = str(int(dnum_raw)) if isinstance(dnum_raw,(int,float)) and dnum_raw else driver_map.get(str(dn).strip(),'')
-            account = str(ws.cell(r,4).value or '').strip()
-            pu      = str(ws.cell(r,5).value or '').strip()
-            dl      = str(ws.cell(r,6).value or '').strip()
-            ll      = float(ws.cell(r,7).value or 0)
-            dp      = float(ws.cell(r,8).value or 0)
-            pf      = float(ws.cell(r,9).value or 0) if ws.cell(r,9).value else round(ll-dp,2)
+            dnum_raw=ws.cell(r,1).value
+            dnum=str(int(dnum_raw)) if isinstance(dnum_raw,(int,float)) and dnum_raw else driver_map.get(str(dn).strip(),'')
+            account=str(ws.cell(r,4).value or '').strip()
+            pu=str(ws.cell(r,5).value or '').strip(); dl=str(ws.cell(r,6).value or '').strip()
+            ll=float(ws.cell(r,7).value or 0); dp=float(ws.cell(r,8).value or 0)
+            pf=float(ws.cell(r,9).value or 0) if ws.cell(r,9).value else round(ll-dp,2)
             if not account and not ll and not dp: continue
             stat_entries.append({'id':15000+len(stat_entries),'driver':str(dn).strip(),'driverNum':dnum,
                 'date':dt,'type':tkey,'route':'','locName':account,'pu':pu,'dl':dl,'cutoff':'',
                 'll':ll,'dp':dp,'pf':round(pf,2),'notes':''})
-
     print(f"  Stat entries:  {len(stat_entries)}")
 
-    # 5. Settlements
-    OWNER_DRIVER = 'Barry Dunn'
-    OWNER_PROFIT_SHARE = 0.65
+    # ── 5. Individual Invoice Sheets — source of truth for settlements ────
+    # Each "X Y Invoice" sheet has:
+    #   row1 col4: "<Name> Payment Tracking for week of"
+    #   row1 col3: driver number
+    #   Extra Services section: rows after "Extra Services and Will Calls", before "Daily Totals:"
+    #     col1=Account, col2=ServiceType, col3=Rate, col11=Total for that service
+    #   "Weekly Total:" label → col+1 = gross (driver pay + services)
+    #   "Services Total" label → col+1 = services subtotal
 
-    def calc_ded(gross):
-        misc=0 if gross<200 else 5
-        of_=14.25 if gross>400 else (10.25 if gross>200 else 0)
-        cnf=round(gross*0.0132,2) if gross>=200 else 0
-        ins=0 if gross<200 else 2
-        return {'misc':misc,'of':of_,'cnf':cnf,'ins':ins,'net':round(gross-misc-of_-cnf-ins,2)}
-
+    total_company_pf = round(sum(e['pf'] for e in route_entries+stat_entries), 2)
     settlements = []
-    if 'Bdash Total Settlement Sheet' in sheets:
-        ws = wb['Bdash Total Settlement Sheet']
-        if not wk_start: wk_start = fmt(ws.cell(2,7).value)
-        if not sett_date: sett_date = fmt(ws.cell(3,6).value)
-        for r in range(5, 50):
-            fn=ws.cell(r,4).value; ln=ws.cell(r,5).value; tot=ws.cell(r,6).value
-            if not fn or not ln or not isinstance(tot,(int,float)) or tot==0: continue
-            ln2 = re.sub(r',\\s*Jr\\.?','',str(ln)).strip()
-            name = f"{fn} {ln2}".strip(); gross = float(tot)
-            ded = calc_ded(gross)
-            drv_routes = [e for e in route_entries if e['driver']==name]
-            drv_stats  = [e for e in stat_entries  if e['driver']==name]
-            entry = {'name':name,'num':driver_map.get(name,''),'gross':round(gross,2),
-                'routes':drv_routes,'stats':drv_stats,**ded}
-            if name == OWNER_DRIVER:
-                all_pf = sum(e.get('pf',0) for e in drv_routes+drv_stats)
-                profit_share = round(all_pf * OWNER_PROFIT_SHARE, 2)
-                entry['profitShare'] = profit_share
-                entry['totalComp']   = round(ded['net'] + profit_share, 2)
-            settlements.append(entry)
-    print(f"  Settlements:   {len(settlements)}")
-    barry = next((s for s in settlements if s['name']==OWNER_DRIVER), None)
-    if barry and 'profitShare' in barry:
-        print(f"  Barry profit share: \${barry['profitShare']:.2f}  Total comp: \${barry['totalComp']:.2f}")
+    missing_drivers = []   # in invoice sheet but not in driver_map
 
-    result = {'_bdashImport':True,'_version':1,'wkStart':wk_start,'wkEnd':None,'settDate':sett_date,
-        'routeEntries':route_entries,'sdEntries':stat_entries,'settlements':settlements,'driverMap':driver_map,
-        '_stats':{'routes':len(route_entries),'stat':len(stat_entries),'settlements':len(settlements),'drivers':len(driver_map)}}
+    for sname in sheets:
+        if not sname.endswith(' Invoice'): continue
+        ws = wb[sname]
+
+        # Get driver name
+        name_raw = str(ws.cell(1,4).value or '')
+        m = re.match(r'(.+?) Payment Tracking', name_raw)
+        if not m: continue
+        name = m.group(1).strip()
+
+        # Driver number
+        num_raw = ws.cell(1,3).value
+        drv_num = str(int(num_raw)) if isinstance(num_raw,(int,float)) else str(num_raw or '')
+
+        # Scan for Weekly Total and Services Total
+        weekly_total = None; services_total = 0
+        for r in range(1,50):
+            for c in range(1,12):
+                v = ws.cell(r,c).value
+                if v == 'Weekly Total:':
+                    wt = ws.cell(r,c+1).value
+                    if wt: weekly_total = float(wt)
+                if v == 'Services Total':
+                    st = ws.cell(r,c+1).value
+                    if st: services_total = float(st)
+
+        if not weekly_total or weekly_total == 0:
+            continue  # driver had no earnings this week
+
+        # Parse Extra Services rows
+        extra_services = []
+        in_extras = False
+        for r in range(1,45):
+            v0 = ws.cell(r,1).value; v1 = ws.cell(r,2).value
+            if v0 == 'Extra Services and Will Calls': in_extras=True; continue
+            if v0 == 'Daily Totals:': in_extras=False; continue
+            if in_extras and v1 and str(v1).strip() != 'Select Services':
+                acct  = str(ws.cell(r,1).value or '').strip()
+                stype = str(v1).strip()
+                rate  = ws.cell(r,3).value
+                total_v = ws.cell(r,11).value
+                if total_v and float(total_v) > 0:
+                    extra_services.append({
+                        'account': acct,
+                        'type':    stype,
+                        'rate':    float(rate) if rate else 0,
+                        'total':   round(float(total_v), 2)
+                    })
+
+        # Check if driver is missing from roster
+        if name not in driver_map:
+            missing_drivers.append({'name': name, 'num': drv_num})
+            driver_map[name] = drv_num  # add so route/stat matching works
+
+        # Gather this driver's route and stat entries
+        drv_routes = [e for e in route_entries if e['driver']==name]
+        drv_stats  = [e for e in stat_entries  if e['driver']==name]
+        driver_pay = round(sum(e['dp'] for e in drv_routes+drv_stats), 2)
+        gross      = round(weekly_total, 2)
+        ded        = calc_ded(gross)
+
+        entry = {
+            'name':          name,
+            'num':           drv_num,
+            'gross':         gross,
+            'driverPay':     driver_pay,
+            'extraServices': extra_services,
+            'servicesTotal': round(services_total, 2),
+            'routes':        drv_routes,
+            'stats':         drv_stats,
+            **ded
+        }
+
+        if name == OWNER_NAME:
+            profit_share = round(total_company_pf * OWNER_PROFIT_SHARE, 2)
+            entry['profitShare'] = profit_share
+
+        settlements.append(entry)
+        svc_str = f"  + \${services_total:.2f} services" if services_total else ""
+        print(f"  {name:<28} gross=\${gross:>9.2f}  net=\${ded['net']:>9.2f}{svc_str}")
+
+    settlements.sort(key=lambda x: x['name'])
+    print(f"\n  Total settlements: {len(settlements)}")
+    if missing_drivers:
+        print(f"  ⚠ Missing from roster: {[d['name'] for d in missing_drivers]}")
+
+    result = {
+        '_bdashImport':   True,
+        '_version':       3,
+        'wkStart':        wk_start,
+        'wkEnd':          None,
+        'settDate':       sett_date,
+        'routeEntries':   route_entries,
+        'sdEntries':      stat_entries,
+        'settlements':    settlements,
+        'missingDrivers': missing_drivers,
+        'driverMap':      driver_map,
+        '_stats': {
+            'routes':      len(route_entries),
+            'stat':        len(stat_entries),
+            'settlements': len(settlements),
+            'drivers':     len(driver_map),
+        }
+    }
 
     out = path.parent / 'workbook_import.json'
     with open(out,'w') as f:
         json.dump(result, f, indent=2, default=str)
-    print(f"\\n✓ Saved: {out}")
-    print(f"  Drop  workbook_import.json  into the BDash import panel.")
+    print(f"\n✓ Saved: {out}")
+    print(f"  Drop workbook_import.json into the BDash import panel.")
 
 if __name__ == '__main__':
     main()

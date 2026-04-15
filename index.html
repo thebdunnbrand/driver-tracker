@@ -178,6 +178,7 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
   <button class="tab" onclick="sw('aptwkd')">Aptive Mon–Fri</button>
   <button class="tab" onclick="sw('drivers')">Drivers</button>
   <button class="tab" onclick="sw('discrepancies')">Discrepancies</button>
+  <button class="tab" onclick="sw('supplies')">📦 Supplies</button>
   <button class="tab owner-only" onclick="sw('ll-archive')">📁 Archive</button>
 </div>
 
@@ -1097,6 +1098,160 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
 </div>
 
 <!-- LL ARCHIVE -->
+<!-- SUPPLY TRACKER -->
+<div id="tab-supplies" class="pnl" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+    <div class="sh" style="margin:0">📦 Driver Supply Tracker</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn sm" onclick="expSuppliesCSV()" style="font-size:9px">Export CSV</button>
+      <button class="btn sm" style="font-size:9px;color:#E85D24;border-color:#E85D24" onclick="clearFulfilledSupplies()">Clear Fulfilled</button>
+    </div>
+  </div>
+  <p class="note" style="margin-bottom:12px">Track supply requests for all drivers. Log what's needed, by whom, and when it was fulfilled.</p>
+
+  <!-- Request Form -->
+  <div style="border:1.5px solid #1D9E75;background:#f0faf6;padding:14px;border-radius:4px;margin-bottom:16px">
+    <div style="font-family:monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#1D9E75;margin-bottom:10px;font-weight:700" id="supply-form-title">New Supply Request</div>
+
+    <div class="fr3" style="margin-bottom:8px">
+      <div class="fld">
+        <label>Date Requested</label>
+        <input type="date" id="sup-date">
+      </div>
+      <div class="fld">
+        <label>Driver</label>
+        <select id="sup-driver" onchange="supDriverChange()">
+          <option value="">— select driver —</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>Driver #</label>
+        <input type="text" id="sup-drvnum" readonly style="background:#f5f4f0;color:#555" placeholder="Auto-filled">
+      </div>
+    </div>
+
+    <div class="fr3" style="margin-bottom:8px">
+      <div class="fld">
+        <label>Supply Item</label>
+        <select id="sup-item" onchange="supItemOther()">
+          <option value="">— select item —</option>
+          <option>Aptive Mon-Thurs FedEx Labels</option>
+          <option>Aptive Friday Only FedEx Labels</option>
+          <option>FedEx Labels</option>
+          <option>FedEx Bags</option>
+          <option>Dekalb Boxes</option>
+          <option>Keys</option>
+          <option>Shipping Boxes</option>
+          <option>Address Labels (Airport)</option>
+          <option>IAC Form</option>
+          <option>UN3733 Labels</option>
+          <option>UPS Bags</option>
+          <option>UPS Boxes</option>
+          <option>Gel Packs</option>
+          <option>Dry Ice</option>
+          <option>Other…</option>
+        </select>
+      </div>
+      <div class="fld" id="sup-item-other-wrap" style="display:none">
+        <label>Custom Item</label>
+        <input type="text" id="sup-item-other" placeholder="Describe the supply item…">
+      </div>
+      <div class="fld">
+        <label>Account Type</label>
+        <select id="sup-account">
+          <option value="">— select account —</option>
+          <option>Aptive</option>
+          <option>Bako</option>
+          <option>BioReference</option>
+          <option>CBL</option>
+          <option>Cleveland Diagnostics</option>
+          <option>Dekalb</option>
+          <option>GI North</option>
+          <option>GrailBio</option>
+          <option>IRL</option>
+          <option>Medically Home</option>
+          <option>Memorial Health</option>
+          <option>Natera</option>
+          <option>Neo</option>
+          <option>Nxgen</option>
+          <option>Pathgroup</option>
+          <option>Pathtec</option>
+          <option>Vizia</option>
+          <option>General / Multiple</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>Quantity</label>
+        <input type="number" id="sup-qty" min="1" value="1" style="width:100%">
+      </div>
+    </div>
+
+    <div class="fr" style="margin-bottom:8px">
+      <div class="fld" style="flex:2">
+        <label>Notes (optional)</label>
+        <input type="text" id="sup-notes" placeholder="Any additional details…">
+      </div>
+      <div class="fld" style="flex:1">
+        <label>Status</label>
+        <select id="sup-status">
+          <option value="Pending">Pending</option>
+          <option value="Ordered">Ordered</option>
+          <option value="Fulfilled">Fulfilled</option>
+        </select>
+      </div>
+    </div>
+
+    <input type="hidden" id="sup-edit-id" value="">
+    <div class="br" style="margin-top:8px">
+      <button class="btn grn" onclick="saveSupplyEntry()">Save Request</button>
+      <button class="btn" onclick="cancelSupplyEdit()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <div style="font-family:monospace;font-size:10px;color:#888">Filter:</div>
+    <select id="sup-filter-driver" onchange="renderSupplies()" style="font-size:10px;border:1px solid #ccc;padding:3px 6px;border-radius:3px;background:#fff">
+      <option value="">All Drivers</option>
+    </select>
+    <select id="sup-filter-status" onchange="renderSupplies()" style="font-size:10px;border:1px solid #ccc;padding:3px 6px;border-radius:3px;background:#fff">
+      <option value="">All Statuses</option>
+      <option value="Pending">Pending</option>
+      <option value="Ordered">Ordered</option>
+      <option value="Fulfilled">Fulfilled</option>
+    </select>
+    <select id="sup-filter-item" onchange="renderSupplies()" style="font-size:10px;border:1px solid #ccc;padding:3px 6px;border-radius:3px;background:#fff">
+      <option value="">All Items</option>
+    </select>
+    <span id="sup-count" style="font-family:monospace;font-size:10px;color:#aaa;margin-left:auto"></span>
+  </div>
+
+  <!-- Summary badges -->
+  <div id="sup-summary" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
+
+  <!-- Table -->
+  <div class="tw">
+    <table class="dt">
+      <thead><tr>
+        <th>Date Req.</th>
+        <th>Driver</th>
+        <th>#</th>
+        <th>Supply Item</th>
+        <th>Account</th>
+        <th class="nr">Qty</th>
+        <th>Status</th>
+        <th>Date Fulfilled</th>
+        <th>Notes</th>
+        <th></th>
+        <th></th>
+      </tr></thead>
+      <tbody id="sup-body">
+        <tr><td colspan="11" style="text-align:center;padding:20px;color:#aaa">No supply requests yet. Add one above.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <div id="tab-ll-archive" class="pnl owner-only" style="display:none">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
     <div class="sh" style="margin:0">Lab Logistics — Finalized Pay Periods</div>
@@ -1869,9 +2024,25 @@ let settlements=[];
 const DEFAULT_TMPL=JSON.parse(JSON.stringify(TMPL));
 
 let discEntries=[];
-function save(){localStorage.setItem('rdt_routes',JSON.stringify(routeEntries));localStorage.setItem('rdt_sd',JSON.stringify(sdEntries));localStorage.setItem('rdt_wk',document.getElementById('wk').value);localStorage.setItem('rdt_tmpl',JSON.stringify(TMPL));localStorage.setItem('rdt_drivers',JSON.stringify(DRIVERS));localStorage.setItem('rdt_bakolocs',JSON.stringify(BAKO_LOCS));localStorage.setItem('rdt_deklocs',JSON.stringify(DEKALB_LOCS));localStorage.setItem('rdt_aptsun',JSON.stringify(APTIVE_SUN));localStorage.setItem('rdt_aptwkd',JSON.stringify(APTIVE_WKD));localStorage.setItem('rdt_disc',JSON.stringify(discEntries));}
+let supplyEntries=[];
+
+const SUPPLY_ITEMS=[
+  'Aptive Mon-Thurs FedEx Labels','Aptive Friday Only FedEx Labels','FedEx Labels','FedEx Bags',
+  'Dekalb Boxes','Keys','Shipping Boxes','Address Labels (Airport)','IAC Form','UN3733 Labels',
+  'UPS Bags','UPS Boxes','Gel Packs','Dry Ice'
+];
+const SUPPLY_ACCOUNTS=[
+  'Aptive','Bako','BioReference','CBL','Cleveland Diagnostics','Dekalb','GI North','GrailBio',
+  'IRL','Medically Home','Memorial Health','Natera','Neo','Nxgen','Pathgroup','Pathtec','Vizia','General / Multiple'
+];
+const SUP_STATUS_COLORS={
+  'Pending': {bg:'#FEF3C7',color:'#92400E',border:'#FDE68A'},
+  'Ordered': {bg:'#DBEAFE',color:'#1E40AF',border:'#BFDBFE'},
+  'Fulfilled':{bg:'#D1FAE5',color:'#065F46',border:'#A7F3D0'}
+};
+function save(){localStorage.setItem('rdt_routes',JSON.stringify(routeEntries));localStorage.setItem('rdt_sd',JSON.stringify(sdEntries));localStorage.setItem('rdt_wk',document.getElementById('wk').value);localStorage.setItem('rdt_tmpl',JSON.stringify(TMPL));localStorage.setItem('rdt_drivers',JSON.stringify(DRIVERS));localStorage.setItem('rdt_bakolocs',JSON.stringify(BAKO_LOCS));localStorage.setItem('rdt_deklocs',JSON.stringify(DEKALB_LOCS));localStorage.setItem('rdt_aptsun',JSON.stringify(APTIVE_SUN));localStorage.setItem('rdt_aptwkd',JSON.stringify(APTIVE_WKD));localStorage.setItem('rdt_disc',JSON.stringify(discEntries));localStorage.setItem('rdt_supplies',JSON.stringify(supplyEntries));}
 function load(){try{routeEntries=JSON.parse(localStorage.getItem('rdt_routes')||'[]');sdEntries=JSON.parse(localStorage.getItem('rdt_sd')||'[]');const w=localStorage.getItem('rdt_wk');if(w)document.getElementById('wk').value=w;const t=localStorage.getItem('rdt_tmpl');if(t)TMPL.splice(0,TMPL.length,...JSON.parse(t));const dr=localStorage.getItem('rdt_drivers');if(dr){const loaded=JSON.parse(dr);// Merge emails/phones from default DRIVERS into loaded roster
-const defaults={};DRIVERS.forEach(d=>defaults[d.n]=d);loaded.forEach(d=>{if(defaults[d.n]){if(!d.email&&defaults[d.n].email)d.email=defaults[d.n].email;if(!d.phone&&defaults[d.n].phone)d.phone=defaults[d.n].phone;}});DRIVERS.splice(0,DRIVERS.length,...loaded);save();}const bl=localStorage.getItem('rdt_bakolocs');if(bl)BAKO_LOCS.splice(0,BAKO_LOCS.length,...JSON.parse(bl));const dl=localStorage.getItem('rdt_deklocs');if(dl)DEKALB_LOCS.splice(0,DEKALB_LOCS.length,...JSON.parse(dl));const as=localStorage.getItem('rdt_aptsun');if(as)APTIVE_SUN.splice(0,APTIVE_SUN.length,...JSON.parse(as));const aw=localStorage.getItem('rdt_aptwkd');if(aw)APTIVE_WKD.splice(0,APTIVE_WKD.length,...JSON.parse(aw));const di=localStorage.getItem('rdt_disc');if(di)discEntries.splice(0,discEntries.length,...JSON.parse(di));}catch(e){}}
+const defaults={};DRIVERS.forEach(d=>defaults[d.n]=d);loaded.forEach(d=>{if(defaults[d.n]){if(!d.email&&defaults[d.n].email)d.email=defaults[d.n].email;if(!d.phone&&defaults[d.n].phone)d.phone=defaults[d.n].phone;}});DRIVERS.splice(0,DRIVERS.length,...loaded);save();}const bl=localStorage.getItem('rdt_bakolocs');if(bl)BAKO_LOCS.splice(0,BAKO_LOCS.length,...JSON.parse(bl));const dl=localStorage.getItem('rdt_deklocs');if(dl)DEKALB_LOCS.splice(0,DEKALB_LOCS.length,...JSON.parse(dl));const as=localStorage.getItem('rdt_aptsun');if(as)APTIVE_SUN.splice(0,APTIVE_SUN.length,...JSON.parse(as));const aw=localStorage.getItem('rdt_aptwkd');if(aw)APTIVE_WKD.splice(0,APTIVE_WKD.length,...JSON.parse(aw));const di=localStorage.getItem('rdt_disc');if(di)discEntries.splice(0,discEntries.length,...JSON.parse(di));const si=localStorage.getItem('rdt_supplies');if(si)supplyEntries.splice(0,supplyEntries.length,...JSON.parse(si));}catch(e){}}
 function clearAllData(){if(!confirm('Clear all entries for this week? The route template will not be affected.'))return;routeEntries=[];sdEntries=[];settlements=[];save();updateSum();renderSdAll();document.getElementById('sett-list').innerHTML='<div style="text-align:center;padding:30px;color:#aaa">Cleared. Load the template to start a new week.</div>';toast('Week cleared');}
 function resetTemplate(){if(!confirm('Reset the route template back to the original default? Any added or deleted routes will be lost.'))return;TMPL.splice(0,TMPL.length,...JSON.parse(JSON.stringify(DEFAULT_TMPL)));save();buildRouteTemplate();toast('Template reset to default');}
 
@@ -2743,7 +2914,7 @@ function expGusto(){const rows=[['Name','Driver Number','Contractor Type','Gross
 function expAll(){const rows=[['Driver','Driver #','Date','Type','Route/Location','Pickup','Delivery','LL Rate','Driver Pay','Co Profit','Notes']];[...routeEntries,...sdEntries].forEach(e=>rows.push([e.driver,e.driverNum||'',e.date,TLBL[e.type]||e.type,e.route||e.locName||'',e.pu||'',e.dl||'',e.ll.toFixed(2),e.dp.toFixed(2),e.pf.toFixed(2),e.notes||'']));dlCSV(rows,'all_entries.csv');}
 
 function sw(id){
-  const ids=['routes','daily','settlement','summary','profits','prices','bakolocs','deklocs','aptsun','aptwkd','drivers','discrepancies','ll-archive'];
+  const ids=['routes','daily','settlement','summary','profits','prices','bakolocs','deklocs','aptsun','aptwkd','drivers','discrepancies','supplies','ll-archive'];
   document.querySelectorAll('#ll-tabs .tab').forEach((t,i)=>t.classList.toggle('on',ids[i]===id));
   // Clear inline styles on LL panels so class-based display works, then toggle class
   ids.forEach(pid=>{
@@ -2759,6 +2930,7 @@ function sw(id){
   if(id==='aptwkd')renderAptWkdTable();
   if(id==='discrepancies'){initDiscDrivers();renderDiscAll();}
   if(id==='ll-archive')renderLLArchive();
+  if(id==='supplies'){initSupplyDrivers();renderSupplies();}
 }
 
 function renderBakoLocTable(){
@@ -7545,6 +7717,235 @@ const today=new Date();const sun=new Date(today);sun.setDate(today.getDate()-tod
 document.getElementById('wk').value=sun.toISOString().slice(0,10);
 document.getElementById('sd-date').value=today.toISOString().slice(0,10);
 load();
+// ══════════════════════════════════════════════════════════════════════════════
+// SUPPLY TRACKER
+// ══════════════════════════════════════════════════════════════════════════════
+
+function initSupplyDrivers() {
+  const today = new Date().toISOString().slice(0,10);
+  const dateEl = document.getElementById('sup-date');
+  if (dateEl && !dateEl.value) dateEl.value = today;
+
+  // Populate driver dropdowns
+  const opts = '<option value="">— select driver —</option>' +
+    sortedDrivers().map(d=>`<option value="${d.n}">${d.n}</option>`).join('');
+  const sd = document.getElementById('sup-driver');
+  if (sd) sd.innerHTML = opts;
+
+  // Filter driver dropdown
+  const fd = document.getElementById('sup-filter-driver');
+  if (fd) {
+    const cur = fd.value;
+    fd.innerHTML = '<option value="">All Drivers</option>' +
+      sortedDrivers().map(d=>`<option value="${d.n}"${d.n===cur?' selected':''}>${d.n}</option>`).join('');
+  }
+
+  // Filter item dropdown
+  const fi = document.getElementById('sup-filter-item');
+  if (fi) {
+    const cur = fi.value;
+    const usedItems = [...new Set(supplyEntries.map(e=>e.item))].sort();
+    fi.innerHTML = '<option value="">All Items</option>' +
+      usedItems.map(it=>`<option value="${it}"${it===cur?' selected':''}>${it}</option>`).join('');
+  }
+}
+
+function supDriverChange() {
+  const name = document.getElementById('sup-driver').value;
+  const d = DRIVERS.find(x=>x.n===name);
+  document.getElementById('sup-drvnum').value = d ? (d.id||'') : '';
+}
+
+function supItemOther() {
+  const val = document.getElementById('sup-item').value;
+  const wrap = document.getElementById('sup-item-other-wrap');
+  wrap.style.display = val === 'Other…' ? '' : 'none';
+  if (val !== 'Other…') document.getElementById('sup-item-other').value = '';
+}
+
+function saveSupplyEntry() {
+  const date    = document.getElementById('sup-date').value;
+  const driver  = document.getElementById('sup-driver').value;
+  const drvnum  = document.getElementById('sup-drvnum').value;
+  const itemSel = document.getElementById('sup-item').value;
+  const itemOth = document.getElementById('sup-item-other').value.trim();
+  const item    = itemSel === 'Other…' ? (itemOth||'Other') : itemSel;
+  const account = document.getElementById('sup-account').value;
+  const qty     = parseInt(document.getElementById('sup-qty').value)||1;
+  const status  = document.getElementById('sup-status').value;
+  const notes   = document.getElementById('sup-notes').value.trim();
+  const editId  = document.getElementById('sup-edit-id').value;
+
+  if (!driver) { toast('Please select a driver.'); return; }
+  if (!item)   { toast('Please select a supply item.'); return; }
+
+  const dateFulfilled = status === 'Fulfilled' ? (new Date().toISOString().slice(0,10)) : '';
+
+  if (editId) {
+    const idx = supplyEntries.findIndex(e=>e.id===parseInt(editId));
+    if (idx>=0) {
+      const existing = supplyEntries[idx];
+      supplyEntries[idx] = {...existing, date, driver, drvnum, item, account, qty, status, notes,
+        dateFulfilled: status==='Fulfilled'?(existing.dateFulfilled||dateFulfilled):''};
+      toast(`✓ Updated: ${item} for ${driver}`);
+    }
+    cancelSupplyEdit();
+  } else {
+    supplyEntries.unshift({
+      id: Date.now(), date, driver, drvnum, item, account, qty, status, notes, dateFulfilled
+    });
+    toast(`✓ Added: ${item} for ${driver}`);
+    clearSupplyForm();
+  }
+
+  save();
+  renderSupplies();
+  initSupplyDrivers(); // refresh item filter
+}
+
+function clearSupplyForm() {
+  document.getElementById('sup-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('sup-driver').value = '';
+  document.getElementById('sup-drvnum').value = '';
+  document.getElementById('sup-item').value = '';
+  document.getElementById('sup-item-other').value = '';
+  document.getElementById('sup-item-other-wrap').style.display = 'none';
+  document.getElementById('sup-account').value = '';
+  document.getElementById('sup-qty').value = '1';
+  document.getElementById('sup-status').value = 'Pending';
+  document.getElementById('sup-notes').value = '';
+  document.getElementById('sup-edit-id').value = '';
+}
+
+function cancelSupplyEdit() {
+  clearSupplyForm();
+  document.getElementById('supply-form-title').textContent = 'New Supply Request';
+}
+
+function editSupplyEntry(id) {
+  const e = supplyEntries.find(x=>x.id===id);
+  if (!e) return;
+  document.getElementById('sup-date').value    = e.date||'';
+  document.getElementById('sup-driver').value  = e.driver||'';
+  document.getElementById('sup-drvnum').value  = e.drvnum||'';
+  // Handle custom items
+  const isStandard = SUPPLY_ITEMS.includes(e.item);
+  document.getElementById('sup-item').value = isStandard ? e.item : 'Other…';
+  if (!isStandard) {
+    document.getElementById('sup-item-other-wrap').style.display = '';
+    document.getElementById('sup-item-other').value = e.item;
+  }
+  document.getElementById('sup-account').value = e.account||'';
+  document.getElementById('sup-qty').value     = e.qty||1;
+  document.getElementById('sup-status').value  = e.status||'Pending';
+  document.getElementById('sup-notes').value   = e.notes||'';
+  document.getElementById('sup-edit-id').value = id;
+  document.getElementById('supply-form-title').textContent = `Edit Request — ${e.item} for ${e.driver}`;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function fulfillSupply(id) {
+  const e = supplyEntries.find(x=>x.id===id);
+  if (!e) return;
+  e.status = 'Fulfilled';
+  e.dateFulfilled = new Date().toISOString().slice(0,10);
+  save();
+  renderSupplies();
+  toast(`✓ Marked fulfilled: ${e.item} for ${e.driver}`);
+}
+
+function deleteSupplyEntry(id) {
+  const e = supplyEntries.find(x=>x.id===id);
+  if (!e) return;
+  if (!confirm(`Delete supply request: ${e.item} for ${e.driver}?`)) return;
+  supplyEntries = supplyEntries.filter(x=>x.id!==id);
+  save();
+  renderSupplies();
+  toast('Supply request deleted');
+}
+
+function clearFulfilledSupplies() {
+  const n = supplyEntries.filter(e=>e.status==='Fulfilled').length;
+  if (!n) { toast('No fulfilled requests to clear.'); return; }
+  if (!confirm(`Remove all ${n} fulfilled supply requests?`)) return;
+  supplyEntries = supplyEntries.filter(e=>e.status!=='Fulfilled');
+  save();
+  renderSupplies();
+  toast(`✓ Cleared ${n} fulfilled requests`);
+}
+
+function renderSupplies() {
+  const filterDriver = document.getElementById('sup-filter-driver')?.value||'';
+  const filterStatus = document.getElementById('sup-filter-status')?.value||'';
+  const filterItem   = document.getElementById('sup-filter-item')?.value||'';
+
+  let filtered = supplyEntries.filter(e => {
+    if (filterDriver && e.driver!==filterDriver) return false;
+    if (filterStatus && e.status!==filterStatus) return false;
+    if (filterItem   && e.item!==filterItem)     return false;
+    return true;
+  });
+
+  // Summary badges
+  const counts = {Pending:0,Ordered:0,Fulfilled:0};
+  supplyEntries.forEach(e => { if(counts[e.status]!=null) counts[e.status]++; });
+  const sumEl = document.getElementById('sup-summary');
+  if (sumEl) {
+    sumEl.innerHTML = Object.entries(counts).map(([st,n])=>{
+      const c = SUP_STATUS_COLORS[st]||{};
+      return `<div style="font-family:monospace;font-size:10px;padding:4px 10px;border-radius:12px;
+        background:${c.bg};color:${c.color};border:1px solid ${c.border};cursor:pointer"
+        onclick="document.getElementById('sup-filter-status').value='${st===filterStatus?'':st}';renderSupplies()">
+        ${st}: <strong>${n}</strong></div>`;
+    }).join('');
+  }
+
+  const countEl = document.getElementById('sup-count');
+  if (countEl) countEl.textContent = `${filtered.length} request${filtered.length!==1?'s':''}`;
+
+  const tb = document.getElementById('sup-body');
+  if (!tb) return;
+  if (!filtered.length) {
+    tb.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:20px;color:#aaa">
+      ${supplyEntries.length?'No requests match the current filters.':'No supply requests yet. Add one above.'}
+    </td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = filtered.map(e => {
+    const sc = SUP_STATUS_COLORS[e.status]||{bg:'#f5f5f5',color:'#555',border:'#ddd'};
+    const badge = `<span style="font-family:monospace;font-size:9px;font-weight:700;padding:2px 7px;
+      border-radius:10px;background:${sc.bg};color:${sc.color};border:1px solid ${sc.border};white-space:nowrap">${e.status}</span>`;
+    const canFulfill = e.status!=='Fulfilled';
+    return `<tr>
+      <td class="mn" style="white-space:nowrap">${e.date||'—'}</td>
+      <td style="font-weight:500">${e.driver||'—'}</td>
+      <td class="mn">${e.drvnum||'—'}</td>
+      <td style="font-size:11px;font-weight:600">${e.item||'—'}</td>
+      <td style="font-size:10px;color:#666">${e.account||'—'}</td>
+      <td class="nr mn">${e.qty||1}</td>
+      <td style="white-space:nowrap">${badge}</td>
+      <td class="mn" style="color:${e.dateFulfilled?'#065F46':'#aaa'}">${e.dateFulfilled||'—'}</td>
+      <td style="font-size:10px;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.notes||''}</td>
+      <td>${canFulfill?`<button class="xb" style="color:#1D9E75;border-color:#1D9E75;white-space:nowrap" onclick="fulfillSupply(${e.id})">✓ Fulfill</button>`:'<span style="color:#aaa;font-size:9px">done</span>'}</td>
+      <td style="display:flex;gap:3px">
+        <button class="xb" style="color:#185FA5;border-color:#185FA5" onclick="editSupplyEntry(${e.id})">Edit</button>
+        <button class="xb" style="color:#E85D24;border-color:#E85D24" onclick="deleteSupplyEntry(${e.id})">X</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function expSuppliesCSV() {
+  const rows = [['Date Requested','Driver','Driver #','Supply Item','Account Type','Quantity','Status','Date Fulfilled','Notes']];
+  supplyEntries.forEach(e => rows.push([
+    e.date||'', e.driver||'', e.drvnum||'', e.item||'', e.account||'',
+    e.qty||1, e.status||'', e.dateFulfilled||'', e.notes||''
+  ]));
+  dlCSV(rows, 'supply_requests.csv');
+  toast('✓ Supply requests exported');
+}
+
 loadArchives();
 loadDispatchPrefs();
 // Pre-load Camelo credentials if not already saved

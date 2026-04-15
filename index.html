@@ -2209,6 +2209,10 @@ const OWNER_PROFIT_SHARE=0.65;
 function calcSett(){
   const all=[...routeEntries,...sdEntries];
   if(!all.length){toast('No entries yet. Load the template or add daily entries first.');return;}
+
+  // Total company profit across ALL drivers — this is what Barry's 65% is based on
+  const totalCompanyPf=+all.reduce((s,e)=>s+(e.pf||0),0).toFixed(2);
+
   const by={};
   all.forEach(e=>{
     if(!by[e.driver])by[e.driver]={driverPay:0,num:e.driverNum,routes:[],stats:[]};
@@ -2218,9 +2222,8 @@ function calcSett(){
   });
   settlements=Object.entries(by).map(([name,d])=>{
     if(name===OWNER_DRIVER){
-      // Barry's gross = his driver pay + 65% of all company profit
-      const totalPf=[...d.routes,...d.stats].reduce((s,e)=>s+(e.pf||0),0);
-      const profitShare=+(totalPf*OWNER_PROFIT_SHARE).toFixed(2);
+      // Barry's gross = his driver pay + 65% of TOTAL company profit (all drivers)
+      const profitShare=+(totalCompanyPf*OWNER_PROFIT_SHARE).toFixed(2);
       const gross=+(d.driverPay+profitShare).toFixed(2);
       const ded=calcDed(gross);
       return{name,num:d.num,routes:d.routes,stats:d.stats,driverPay:+d.driverPay.toFixed(2),profitShare,...ded};
@@ -6551,6 +6554,8 @@ function commitLLImport() {
       finalSettlements = _importParsed.settlements;
     } else {
       const all = [...routes, ...stats];
+      // Total company profit across ALL drivers
+      const totalCompanyPf = +all.reduce((s,e)=>s+(e.pf||0),0).toFixed(2);
       const byDriver = {};
       all.forEach(e => {
         if (!byDriver[e.driver]) byDriver[e.driver] = {gross:0, num:e.driverNum, routes:[], stats:[]};
@@ -6561,8 +6566,7 @@ function commitLLImport() {
       finalSettlements = Object.entries(byDriver)
         .map(([name,d]) => {
           if (name === OWNER_DRIVER) {
-            const totalPf = [...d.routes,...d.stats].reduce((s,e)=>s+(e.pf||0),0);
-            const profitShare = +(totalPf * OWNER_PROFIT_SHARE).toFixed(2);
+            const profitShare = +(totalCompanyPf * OWNER_PROFIT_SHARE).toFixed(2);
             const gross = +(d.gross + profitShare).toFixed(2);
             const ded = calcDed(gross);
             return {name, num:d.num, routes:d.routes, stats:d.stats, driverPay:+d.gross.toFixed(2), profitShare, ...ded};

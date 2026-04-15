@@ -1310,6 +1310,7 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
       <div>
         <div style="font-family:monospace;font-size:13px;font-weight:700;letter-spacing:.04em">⟳ Sync from Camelo</div>
         <div style="font-family:monospace;font-size:10px;color:#C7D2FE;margin-top:2px">Pull team members, schedules, and contact info</div>
+        <div id="camelo-wk-note" style="font-family:monospace;font-size:10px;margin-top:3px"></div>
       </div>
       <button onclick="closeCameloSync()" style="border:none;background:none;color:#C7D2FE;font-size:20px;cursor:pointer;line-height:1">×</button>
     </div>
@@ -6524,7 +6525,9 @@ function commitLLImport() {
     sdEntries    = stats;
     if (discs.length) discEntries.unshift(...discs);
     // Set the week picker to the imported week if available
-    if (_importParsed.wkStart) { document.getElementById('wk').value = _importParsed.wkStart; localStorage.setItem('rdt_wk', _importParsed.wkStart); }
+    const wkElCurrent = document.getElementById('wk').value;
+    const targetWk = wkElCurrent || _importParsed.wkStart;
+    if (targetWk && !wkElCurrent) { document.getElementById('wk').value = targetWk; localStorage.setItem('rdt_wk', targetWk); }
     save(); updateSum(); renderSdAll(); buildRouteTemplate();
     toast(`✓ Imported ${total} entries — week set to ${_importParsed.wkStart||'current'}`);
 
@@ -6540,7 +6543,11 @@ function commitLLImport() {
     // Use wkStart from parsed data if available, else from UI input
     const parsedWk   = (_importParsed.wkStart) || '';
     const parsedSett = (_importParsed.settDate) || '';
-    let wk = document.getElementById('ll-import-wk').value || parsedWk;
+    // Priority: main week picker → import panel date field → parsed from file
+    const mainWk = document.getElementById('wk').value || '';
+    let wk = mainWk || document.getElementById('ll-import-wk').value || parsedWk;
+    // Auto-fill import date field for user reference
+    if (parsedWk && !document.getElementById('ll-import-wk').value) document.getElementById('ll-import-wk').value = parsedWk;
     if (!wk) { toast('Enter the Week Start Date for archive mode.'); document.getElementById('ll-import-wk').focus(); return; }
     if (isLLWeekLocked(wk)) { toast('A finalized period for ' + wk + ' already exists.'); return; }
     if (!confirm(`Import as finalized period for week of ${wk}?\n${routes.length} routes + ${stats.length} stat entries + ${(_importParsed.settlements||[]).length} driver settlements`)) return;
@@ -6649,8 +6656,13 @@ function parseJSON(data, fileName) {
     ${settlements.length ? `<div style="font-size:9px;color:#6ee7b7">✓ ${settlements.length} driver settlements included from workbook totals</div>` : ''}
     <div style="font-size:9px;color:#fbbf24;margin-top:4px">⚠ Select import mode below then click Confirm Import</div>`;
 
-  // Auto-fill the week date field
-  if (wkStart) document.getElementById('ll-import-wk').value = wkStart;
+  // Sync both the main week picker and the import date field
+  if (wkStart) {
+    document.getElementById('ll-import-wk').value = wkStart;
+    // Also update the main wk picker so routes/template align to this week
+    const wkEl = document.getElementById('wk');
+    if (!wkEl.value) wkEl.value = wkStart; // only if not already set
+  }
 
   setImportStatus('ready',
     `✓ ${fileName} — ${routes.length} routes · ${stats.length} stat entries · ${settlements.length} settlements`,
@@ -6906,6 +6918,21 @@ function openCameloSync() {
     const p = JSON.parse(localStorage.getItem('camelo_prefs') || '{}');
     if (p.token) document.getElementById('camelo-token').value = p.token;
   } catch(e) {}
+  // Show which week will be synced
+  const wkVal = document.getElementById('wk').value;
+  const wkNote = document.getElementById('camelo-wk-note');
+  if (wkNote) {
+    if (wkVal) {
+      const sun = new Date(wkVal+'T12:00:00');
+      const sat = new Date(sun); sat.setDate(sun.getDate()+6);
+      const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      wkNote.textContent = `Week: ${fmt(sun)} – ${fmt(sat)}`;
+      wkNote.style.color = '#4F46E5';
+    } else {
+      wkNote.textContent = 'No week selected — will use current week. Set the week picker first.';
+      wkNote.style.color = '#E85D24';
+    }
+  }
   modal.style.display = '';
   document.getElementById('camelo-status').style.display  = 'none';
   document.getElementById('camelo-results').style.display = 'none';
@@ -7018,8 +7045,11 @@ async function runCameloSync() {
       if (!scheduleIds.length) throw new Error('No schedules found in your Camelo account.');
 
       // Step 2: get current week range
-      const now = new Date();
-      const sun = new Date(now); sun.setDate(now.getDate() - now.getDay());
+      // Use the week selected in the dashboard picker, fall back to current week
+      const wkVal = document.getElementById('wk').value;
+      const base = wkVal ? new Date(wkVal + 'T12:00:00') : new Date();
+      const sun = new Date(base);
+      if (!wkVal) sun.setDate(base.getDate() - base.getDay()); // snap to Sunday if no date set
       const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
       const fmtDT = d => d.toISOString().replace('.000','');
 
@@ -7155,11 +7185,11 @@ function applyCameloData() {
     const DAYS_MAP = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
     let routesMapped = 0, routesNotFound = [];
 
-    // Auto-set week picker from first shift date
+    // Auto-set week picker from first shift date only if picker is empty
     const firstDate = schedules.find(s => s.startTime)?.startTime?.slice(0,10);
-    if (firstDate) {
+    if (firstDate && !document.getElementById('wk').value) {
       const d = new Date(firstDate + 'T12:00:00');
-      d.setDate(d.getDate() - d.getDay()); // back to Sunday
+      d.setDate(d.getDate() - d.getDay());
       document.getElementById('wk').value = d.toISOString().slice(0,10);
     }
 

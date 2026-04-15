@@ -1149,7 +1149,7 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
         <div style="flex:1;min-width:180px">
           <div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Import Mode</div>
           <select id="ll-import-mode" style="font-family:monospace;font-size:10px;background:#1a1a1a;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:3px;width:100%">
-            <option value="week">Load to Current Week (replaces current entries)</option>
+            <option value="week">Replace This Pay Period (clears & reloads this week only)</option>
             <option value="archive">Import as Finalized Period (adds to Archive)</option>
             <option value="append">Append to Current Week (adds without replacing)</option>
           </select>
@@ -6520,19 +6520,34 @@ function commitLLImport() {
   if (pin !== OWNER_PIN) { toast('Incorrect PIN.'); return; }
 
   if (mode === 'week') {
-    if (!confirm(`Replace current week with ${routes.length} route + ${stats.length} stat entries${discs.length?' + '+discs.length+' discrepancies':''}?`)) return;
-    routeEntries = routes;
-    sdEntries    = stats;
-    if (discs.length) discEntries.unshift(...discs);
-    // Set the week picker to the imported week if available
-    const targetWk = _importParsed.wkStart || document.getElementById('wk').value;
-    if (targetWk) {
-      document.getElementById('wk').value = targetWk;
-      localStorage.setItem('rdt_wk', targetWk);
-      buildRouteTemplate();
+    const importWk = _importParsed.wkStart;
+    if (!importWk) { toast('No week date in import file.'); return; }
+
+    // Build the 7 dates for this pay period
+    const base = new Date(importWk + 'T12:00:00');
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(base); d.setDate(base.getDate() + i);
+      weekDates.push(d.toISOString().slice(0, 10));
     }
+
+    if (!confirm(`This will replace all route and stat entries for the week of ${importWk} with ${routes.length} route + ${stats.length} stat entries from the import.\n\nEntries from other weeks are not affected.`)) return;
+
+    // Remove only entries that belong to this specific week
+    routeEntries = routeEntries.filter(e => !weekDates.includes(e.date));
+    sdEntries    = sdEntries.filter(e => !weekDates.includes(e.date));
+
+    // Add the imported entries for this week
+    routeEntries = [...routeEntries, ...routes];
+    sdEntries    = [...sdEntries, ...stats];
+    if (discs.length) discEntries.unshift(...discs);
+
+    // Set the week picker to this week so template and display align
+    document.getElementById('wk').value = importWk;
+    localStorage.setItem('rdt_wk', importWk);
+
     save(); updateSum(); renderSdAll(); buildRouteTemplate();
-    toast(`✓ Imported ${total} entries — week set to ${_importParsed.wkStart||'current'}`);
+    toast(`✓ Week of ${importWk} replaced — ${routes.length} routes + ${stats.length} stat entries loaded`);
 
   } else if (mode === 'append') {
     if (!confirm(`Append ${total} entries to the current week?`)) return;
@@ -7199,17 +7214,18 @@ function applyCameloData() {
     renderDriverTable();
   }
 
-  // ── Sync schedule to Weekly Routes template ─────────────────────────────
+  // ── Additively enhance Weekly Routes from Camelo schedule ──────────────
   if (schedules.length && (syncType === 'schedules' || syncType === 'both')) {
     const DAYS_MAP = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
-    let routesMapped = 0, routesNotFound = [];
+    let enhanced = 0, tmplUpdated = 0, routesNotFound = [];
 
-    // Auto-set week picker from first shift date only if picker is empty
-    const firstDate = schedules.find(s => s.startTime)?.startTime?.slice(0,10);
-    if (firstDate && !document.getElementById('wk').value) {
-      const d = new Date(firstDate + 'T12:00:00');
-      d.setDate(d.getDate() - d.getDay());
-      document.getElementById('wk').value = d.toISOString().slice(0,10);
+    function cleanRouteTitle(title) {
+      return title
+        .replace(/\s+M-F\b/gi, '')
+        .replace(/\s+M,W\b/gi, '')
+        .replace(/\s+T,?TH\b/gi, '')
+        .replace(/\s+(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?)(\s*[-–,]\s*(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?))*\s*/gi, ' ')
+        .replace(/\s+\d+x\/week\b/gi, '').replace(/\s+/g,' ').trim();
     }
 
     schedules.forEach(s => {
@@ -7217,60 +7233,62 @@ function applyCameloData() {
       const driverName = `${s.assignee.firstName||''} ${s.assignee.lastName||''}`.trim();
       if (!driverName) return;
 
-      // Only apply to drivers already in roster
       const rosterDriver = DRIVERS.find(d => d.n.toLowerCase() === driverName.toLowerCase());
       if (!rosterDriver) return;
 
-      // Strip day-of-week suffixes from Camelo shift titles before matching
-      // e.g. "LLGA10 Mon-Thurs" → "LLGA10", "BAKOGA1 M-F" → "BAKOGA1", "NateraGA6 M,W" → "NateraGA6"
-      function cleanRouteTitle(title) {
-        return title
-          .replace(/\s+M-F\b/gi, '')
-          .replace(/\s+M,W\b/gi, '')
-          .replace(/\s+T,?TH\b/gi, '')
-          .replace(/\s+(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?)(\s*[-–,]\s*(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?))*\s*/gi, ' ')
-          .replace(/\s+\d+x\/week\b/gi, '').replace(/\s+/g,' ').trim();
-      }
-
       const routeKey = cleanRouteTitle(s.title || s.note || (s.jobSite && s.jobSite.name) || '');
-
-      // Find which day of the week this shift falls on
       const date = s.startTime.slice(0, 10);
       const dayIdx = new Date(date + 'T12:00:00').getDay();
       const dayKey = DAYS_MAP[dayIdx];
+      const st = s.startTime ? s.startTime.slice(11, 16) : '';
+      const et = s.endTime   ? s.endTime.slice(11, 16)   : '';
 
-      if (routeKey) {
-        // Find matching route in TMPL (case-insensitive)
-        const tmplRow = TMPL.find(t => t.r.toLowerCase() === routeKey.toLowerCase());
-        if (tmplRow) {
-          // Update driver for that route on that day, keeping existing prices
-          const existing = tmplRow[dayKey];
-          const ll = existing ? existing[1] : 0;
-          const dp = existing ? existing[2] : 0;
-          // Parse start/end times from Camelo shift (HH:MM format)
-          const st = s.startTime ? s.startTime.slice(11,16) : (existing ? existing[3]||'' : '');
-          const et = s.endTime   ? s.endTime.slice(11,16)   : (existing ? existing[4]||'' : '');
-          tmplRow[dayKey] = [rosterDriver.n, ll, dp, st, et];
-          routesMapped++;
-        } else {
-          if (!routesNotFound.includes(routeKey)) routesNotFound.push(routeKey);
-        }
+      if (!routeKey) return;
+
+      // 1. Enhance existing routeEntries for this week — add/update times and driver
+      //    on entries that match this route + date. Never delete existing entries.
+      const existing = routeEntries.filter(e => e.route.toLowerCase() === routeKey.toLowerCase() && e.date === date);
+      if (existing.length) {
+        existing.forEach(e => {
+          // Only update driver if entry has no driver or matches (don't override a different assignment)
+          if (!e.driver || e.driver.toLowerCase() === rosterDriver.n.toLowerCase()) {
+            e.driver    = rosterDriver.n;
+            e.driverNum = rosterDriver.id ? String(rosterDriver.id) : e.driverNum;
+          }
+          // Always add times from Camelo if not already set
+          if (st && !e.startTime) e.startTime = st;
+          if (et && !e.endTime)   e.endTime   = et;
+          enhanced++;
+        });
+      }
+
+      // 2. Also update TMPL for future "Load This Week" calls
+      const tmplRow = TMPL.find(t => t.r.toLowerCase() === routeKey.toLowerCase());
+      if (tmplRow) {
+        const cur = tmplRow[dayKey];
+        const ll = cur ? cur[1] : 0;
+        const dp = cur ? cur[2] : 0;
+        const curSt = cur ? cur[3]||'' : '';
+        const curEt = cur ? cur[4]||'' : '';
+        tmplRow[dayKey] = [rosterDriver.n, ll, dp, st||curSt, et||curEt];
+        tmplUpdated++;
       } else {
-        // No route name in shift — just note that this driver is working this day
-        // Can't map to specific route without a title, skip silently
+        if (!routesNotFound.includes(routeKey)) routesNotFound.push(routeKey);
       }
     });
 
-    save();
-    buildRouteTemplate();
+    save(); renderSdAll(); buildRouteTemplate();
+
+    const msgs = [];
+    if (enhanced)    msgs.push(`${enhanced} route entr${enhanced!==1?'ies':'y'} enhanced`);
+    if (tmplUpdated) msgs.push(`${tmplUpdated} template slot${tmplUpdated!==1?'s':''} updated`);
 
     if (routesNotFound.length) {
-      const msg = `✓ Mapped ${routesMapped} shift${routesMapped!==1?'s':''} to routes.\n\nCould not match these Camelo shift titles to routes in the tracker:\n• ${routesNotFound.join('\n• ')}\n\nMake sure shift titles in Camelo match route names exactly (e.g. "LLGA30").`;
-      alert(msg);
-    } else if (routesMapped) {
-      toast(`✓ ${routesMapped} shift${routesMapped!==1?'s':''} synced to Weekly Routes template.`);
+      alert(`✓ Camelo sync applied${msgs.length?' — '+msgs.join(', '):''}.\n\nThese Camelo shift titles didn't match any route:\n• ${routesNotFound.join('\n• ')}\n\nCheck that shift titles match route names (e.g. "LLGA30").`);
+    } else if (msgs.length) {
+      toast(`✓ Camelo schedule applied — ${msgs.join(', ')}.`);
     } else {
-      toast('⚠ No shifts could be matched to routes. Make sure Camelo shift titles match route names (e.g. "LLGA30").');
+      toast('⚠ No existing entries matched Camelo shifts. Run spreadsheet import first, then sync Camelo.');
     }
   }
 

@@ -202,6 +202,7 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
     <button class="btn pri" onclick="showAddRoute()">+ Add Route</button>
     <button class="btn sm" onclick="expRoutesCSV()">Export Routes CSV</button>
     <button class="btn sm" onclick="resetTemplate()" style="color:#E85D24;border-color:#E85D24">Reset to Default</button>
+    <button class="btn sm" style="background:#6366F1;border-color:#6366F1;color:#fff" onclick="openCameloSyncSchedule()">⟳ Sync from Camelo</button>
     <span id="route-count" style="font-family:monospace;font-size:11px;color:#888"></span>
   </div>
 
@@ -668,7 +669,12 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
 
 <!-- DRIVERS -->
 <div id="tab-drivers" class="pnl">
-  <div class="sh" style="margin-top:0">Driver Roster</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+    <div class="sh" style="margin:0">Driver Roster</div>
+    <button class="btn" style="background:#6366F1;border-color:#6366F1;color:#fff;font-size:10px;display:flex;align-items:center;gap:5px" onclick="openCameloSync()">
+      ⟳ Sync from Camelo
+    </button>
+  </div>
   <p class="note" style="margin-bottom:10px">Add, edit, or remove drivers. Changes apply immediately across all dropdowns and the route template. Removing a driver does not delete their existing entries.</p>
 
   <!-- Add / Edit Form -->
@@ -688,6 +694,16 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
         <input type="text" id="drv-num" placeholder="e.g. 59473">
       </div>
     </div>
+    <div class="fr" style="margin-top:8px">
+      <div class="fld" style="flex:2">
+        <label>Email Address</label>
+        <input type="email" id="drv-email" placeholder="e.g. driver@email.com">
+      </div>
+      <div class="fld" style="flex:1">
+        <label>Phone (optional)</label>
+        <input type="tel" id="drv-phone" placeholder="e.g. 404-555-0100">
+      </div>
+    </div>
     <input type="hidden" id="drv-edit-idx" value="">
     <div class="br" style="margin-top:8px">
       <button class="btn grn" onclick="saveDriver()">Save Driver</button>
@@ -702,6 +718,8 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
         <th>#</th>
         <th>Driver Name</th>
         <th>Driver Number</th>
+        <th>Email</th>
+        <th>Phone</th>
         <th style="text-align:center">Edit</th>
         <th style="text-align:center">Remove</th>
       </tr></thead>
@@ -1080,8 +1098,83 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
 
 <!-- LL ARCHIVE -->
 <div id="tab-ll-archive" class="pnl owner-only" style="display:none">
-  <div class="sh" style="margin-top:0">Lab Logistics — Finalized Pay Periods</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+    <div class="sh" style="margin:0">Lab Logistics — Finalized Pay Periods</div>
+    <button class="btn" style="font-size:10px;background:#111;border-color:#333;color:#aaa" onclick="toggleLLImport()">⬆ Import Spreadsheet</button>
+  </div>
   <p class="note" style="margin-bottom:14px">Locked pay periods are read-only snapshots. Settlements and PDFs can be reprinted anytime. Unlock requires owner PIN.</p>
+
+  <!-- IMPORT PANEL -->
+  <div id="ll-import-panel" style="display:none;margin-bottom:20px">
+    <div style="border:1.5px solid #333;border-radius:6px;background:#0f0f0f;overflow:hidden;font-family:monospace">
+
+      <!-- Panel header -->
+      <div style="background:#1a1a1a;padding:12px 16px;border-bottom:1px solid #333;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#fff;letter-spacing:.05em">IMPORT PAY PERIOD DATA</div>
+          <div style="font-size:9px;color:#666;margin-top:2px">CSV or XLSX · matches the Export All Entries format</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="downloadImportTemplate()" style="font-family:monospace;font-size:9px;padding:4px 10px;border:1px solid #444;background:#222;color:#aaa;cursor:pointer;border-radius:2px">⬇ Download CSV Template</button>
+          <button onclick="downloadConverterScript()" style="font-family:monospace;font-size:9px;padding:4px 10px;border:1px solid #1D9E75;background:#0a1a12;color:#4ade80;cursor:pointer;border-radius:2px">⬇ Download Converter Script</button>
+          <button onclick="toggleLLImport()" style="font-family:monospace;font-size:9px;padding:4px 10px;border:1px solid #333;background:none;color:#666;cursor:pointer;border-radius:2px">✕ Close</button>
+        </div>
+      </div>
+
+      <!-- Workflow instructions -->
+      <div style="margin:12px 16px 0;background:#0a1200;border:1px solid #1D9E7560;border-radius:3px;padding:10px 14px">
+        <div style="font-size:9px;color:#4ade80;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">▸ How to import your workbook (.xlsm)</div>
+        <div style="font-size:9px;color:#6ee7b7;line-height:1.8">
+          1. Click <strong style="color:#fff">⬇ Download Converter Script</strong> — save <code style="background:#111;padding:1px 4px;border-radius:2px">bdash_converter.py</code> anywhere on your computer<br>
+          2. Open <strong style="color:#fff">Terminal</strong> (Mac/Linux) or <strong style="color:#fff">Command Prompt</strong> (Windows) in the same folder as your .xlsm file<br>
+          3. Run: <code style="background:#111;padding:2px 6px;border-radius:2px;color:#fbbf24">python bdash_converter.py Weekly_Route_to_Driver_Tracker_11.xlsm</code><br>
+          4. It produces a <code style="background:#111;padding:1px 4px;border-radius:2px">workbook_import.json</code> file — drag that file into the drop zone below<br>
+          5. Or drop a plain <strong style="color:#fff">.csv</strong> file for flat data imports
+        </div>
+      </div>
+
+      <!-- Drop zone -->
+      <div id="ll-drop-zone"
+        style="margin:12px 16px 0;border:2px dashed #333;border-radius:4px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s"
+        onclick="document.getElementById('ll-file-input').click()"
+        ondragover="llDragOver(event)" ondragleave="llDragLeave(event)" ondrop="llDrop(event)">
+        <div style="font-size:24px;margin-bottom:8px">📂</div>
+        <div style="font-size:11px;color:#aaa;margin-bottom:4px">Drop <strong style="color:#6ee7b7">workbook_import.json</strong> or a <strong style="color:#6ee7b7">.csv</strong> file here</div>
+        <div style="font-size:9px;color:#555">or click to browse · .json and .csv supported</div>
+        <input type="file" id="ll-file-input" accept=".json,.csv" style="display:none" onchange="llFileSelected(event)">
+      </div>
+
+      <!-- Import options -->
+      <div style="margin:10px 16px 12px;display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Import Mode</div>
+          <select id="ll-import-mode" style="font-family:monospace;font-size:10px;background:#1a1a1a;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:3px;width:100%">
+            <option value="week">Load to Current Week (replaces current entries)</option>
+            <option value="archive">Import as Finalized Period (adds to Archive)</option>
+            <option value="append">Append to Current Week (adds without replacing)</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:160px" id="ll-import-wk-wrap">
+          <div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Week Start Date (archive mode only)</div>
+          <input type="date" id="ll-import-wk" style="font-family:monospace;font-size:10px;background:#1a1a1a;border:1px solid #333;color:#aaa;padding:5px 8px;border-radius:3px;width:100%">
+        </div>
+      </div>
+
+      <!-- Status / validation output -->
+      <div id="ll-import-status" style="display:none;margin:0 16px 16px">
+        <div style="border:1px solid #333;border-radius:3px;overflow:hidden">
+          <div id="ll-import-status-hdr" style="padding:8px 12px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:8px"></div>
+          <div id="ll-import-status-body" style="padding:10px 12px;max-height:200px;overflow-y:auto;font-size:10px;line-height:1.7;color:#aaa"></div>
+          <div id="ll-import-actions" style="display:none;padding:10px 12px;border-top:1px solid #222;display:flex;gap:8px">
+            <button id="ll-import-confirm-btn" onclick="commitLLImport()" style="font-family:monospace;font-size:10px;font-weight:700;padding:6px 14px;border:1px solid #1D9E75;background:#1D9E7520;color:#4ade80;cursor:pointer;border-radius:3px">✓ Confirm Import</button>
+            <button onclick="cancelLLImport()" style="font-family:monospace;font-size:10px;padding:6px 14px;border:1px solid #444;background:none;color:#888;cursor:pointer;border-radius:3px">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div id="ll-archive-list"><div style="text-align:center;padding:30px;color:#aaa">No finalized pay periods yet. Calculate settlements and click "Finalize & Lock Period".</div></div>
 </div>
 
@@ -1208,6 +1301,56 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
 </div>
 
 <!-- ══════════════════════════════════════════════════════
+     CAMELO SYNC MODAL
+     ══════════════════════════════════════════════════════ -->
+<div id="camelo-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px);overflow-y:auto">
+  <div style="background:#fff;border-radius:6px;max-width:620px;margin:40px auto;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden">
+
+    <div style="background:#4F46E5;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:monospace;font-size:13px;font-weight:700;letter-spacing:.04em">⟳ Sync from Camelo</div>
+        <div style="font-family:monospace;font-size:10px;color:#C7D2FE;margin-top:2px">Pull team members, schedules, and contact info</div>
+      </div>
+      <button onclick="closeCameloSync()" style="border:none;background:none;color:#C7D2FE;font-size:20px;cursor:pointer;line-height:1">×</button>
+    </div>
+
+    <div style="padding:18px 20px">
+
+      <!-- API Config -->
+      <div style="margin-bottom:14px">
+        <div class="fld">
+          <label>Camelo API Token</label>
+          <input type="password" id="camelo-token" placeholder="Paste your API token here"
+            style="font-family:monospace;font-size:11px;border:1.5px solid #ccc;padding:6px 8px;border-radius:3px;width:100%">
+          <div style="font-size:9px;color:#aaa;margin-top:3px">Settings → Integrations → API Tokens → Generate New Token</div>
+        </div>
+        <div class="fld" style="margin-top:10px">
+          <label>Sync</label>
+          <select id="camelo-sync-type" style="font-size:12px;border:1.5px solid #ccc;padding:6px 8px;border-radius:3px;width:100%">
+            <option value="members">Team Members (names, emails, phones)</option>
+            <option value="schedules">This Week's Schedule</option>
+            <option value="both">Members + Schedule</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div id="camelo-status" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:4px;font-size:11px;font-family:monospace;line-height:1.6"></div>
+
+      <!-- Results preview -->
+      <div id="camelo-results" style="display:none;max-height:260px;overflow-y:auto;border:1.5px solid #eee;border-radius:4px;margin-bottom:12px"></div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" style="background:#4F46E5;border-color:#4F46E5;color:#fff" onclick="runCameloSync()">⟳ Fetch from Camelo</button>
+        <button id="camelo-apply-btn" class="btn grn" style="display:none" onclick="applyCameloData()">✓ Apply to Dashboard</button>
+        <button class="btn" onclick="closeCameloSync()" style="color:#888">Cancel</button>
+        <button class="btn" style="margin-left:auto;font-size:9px;color:#888" onclick="saveCameloPrefs()">Save Token & Team ID</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
      DISPATCH EMAIL MODAL
      ══════════════════════════════════════════════════════ -->
 <div id="dispatch-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px);overflow-y:auto">
@@ -1314,15 +1457,65 @@ body.client-allmed #hdr-logo{color:#60A5FA;border-color:#60A5FA}
 
 <script>
 let DRIVERS=[
-  {n:'Barry Dunn',id:55513},{n:'Brian Hamilton',id:21036},{n:'Brittany Williams',id:59640},
-  {n:'Brittney Hill',id:21304},{n:'Chawn Alford',id:55875},{n:'Cheyenne Franklin',id:59353},
-  {n:'Darnell Jones',id:59996},{n:'Darrius Robinson',id:59228},{n:'Eric Williams',id:55818},
-  {n:'Jasmine Scott-Prince',id:57815},{n:'Keesha Giles',id:59473},{n:'Kudjo Thomas',id:21356},
-  {n:'Latoya Pierce',id:21799},{n:'Maurice Gibson',id:58329},{n:'Myisha Green-Moore',id:21385},
-  {n:'Nassor Tinnin',id:22055},{n:'Panecia Faust',id:21033},{n:'Richard Thomas',id:55603},
-  {n:'Rico Giles',id:59474},{n:'Robert Spann',id:58510},{n:'Samantha Taylor',id:21019},
-  {n:'Shaundretta Drake',id:58099},{n:'Sydney Stasinos',id:58262},{n:'Taneakqua Duckworth',id:56183},
-  {n:'Tory Wright',id:55898}
+  {n:'Alexia Blakley',id:'',email:'a.n.blakley@gmail.com'},
+  {n:'Antonio Glenn',id:'',email:'antonioglenn46@gmail.com'},
+  {n:'Azia Houston',id:'',email:'aziadeanna@yahoo.com'},
+  {n:'Alfreda Byrd',id:'',email:'abyrd198@gmail.com'},
+  {n:'Barry Dunn',id:55513,email:'bdashlogistics@gmail.com'},
+  {n:'Brandy Mitchell',id:'',email:'b.mitchell5@yahoo.com'},
+  {n:'Brian Hamilton',id:21036,email:'brianhamilton8878@gmail.com'},
+  {n:'Brittany Williams',id:59640,email:'bnicolel21@yahoo.com'},
+  {n:'Brittney Hill',id:21304,email:'brittneyhill27@gmail.com'},
+  {n:'Bryan Orellana',id:'',email:'Castro.bryan13@gmail.com'},
+  {n:'Cedric Coleman',id:'',email:'ceddyboy32@icloud.com'},
+  {n:'Charles Oliver',id:'',email:'chazbrogdenprod@gmail.com'},
+  {n:'Chawn Alford',id:55875,email:'cmalford410@gmail.com'},
+  {n:'Chentellia Scott',id:'',email:'scottchentellia25@gmail.com'},
+  {n:'Cheyenne Franklin',id:59353,email:'ckorif@gmail.com'},
+  {n:'Claudia Smith',id:'',email:'cldsmith11@icloud.com'},
+  {n:'Darnell Jones',id:59996,email:'darnelldjones@hotmail.com'},
+  {n:'Darrius Robinson',id:59228,email:'darrious2devonte15@gmail.com'},
+  {n:'Delikah Carter',id:'',email:'Delikahc@msn.com'},
+  {n:'Demiya Bernard',id:'',email:'demiyabernard@gmail.com'},
+  {n:'Dy\'mon Brown',id:'',email:'dymonb1@gmail.com'},
+  {n:'Eric Williams',id:55818,email:'ecwilliams@esoniclogistics.com'},
+  {n:'Ezra Brown',id:'',email:'ezbrown7@gmail.com'},
+  {n:'Gary Harris',id:'',email:'geezie78@gmail.com'},
+  {n:'Jasmine Scott-Prince',id:57815,email:'jascottprince@gmail.com'},
+  {n:'Jamilah Turner',id:'',email:'jgtelitesolutions@yahoo.com'},
+  {n:'Jaylen Hill',id:'',email:'jaylenh937@gmail.com'},
+  {n:'Jeremy Sutton',id:'',email:'suttj231@gmail.com'},
+  {n:'Johnathan Gomes',id:'',email:'johnathan.gomes94@gmail.com'},
+  {n:'Jordan Lewis',id:'',email:'jslewis1789@gmail.com'},
+  {n:'Keesha Giles',id:59473,email:'kgiles12@aol.com'},
+  {n:'Kenny Desravines',id:21666,email:'kdesravines83@gmail.com'},
+  {n:'Kieshawn Sampson',id:'',email:'kieshawn99@gmail.com'},
+  {n:'Kimberly Rainwater',id:'',email:'rainkim44@gmail.com'},
+  {n:'Kudjo Thomas',id:21356,email:'decore79@yahoo.com'},
+  {n:'Lamar Taylor',id:'',email:'marr125@gmail.com'},
+  {n:'Latoya Pierce',id:21799,email:'lpierce313@gmail.com'},
+  {n:'Maurice Gibson',id:58329,email:'gibsonmo1029@gmail.com'},
+  {n:'Michele Hostler',id:'',email:'mjaipresents@gmail.com'},
+  {n:'Myisha Green-Moore',id:21385,email:'mdgtransporting@yahoo.com'},
+  {n:'Nassor Tinnin',id:22055,email:'nassortinnin@gmail.com'},
+  {n:'Nesredin Zein',id:'',email:'nesredinzein@yahoo.com'},
+  {n:'Panecia Faust',id:21033,email:'paneciaf@gmail.com'},
+  {n:'Qri Montague',id:'',email:'montq2u@yahoo.com'},
+  {n:'Richard Thomas',id:55603,email:'lamarthomaskmg@gmail.com'},
+  {n:'Rico Giles',id:59474,email:'ricogiles10@gmail.com'},
+  {n:'Robert Spann',id:58510,email:'spann@blankcheckagency.com'},
+  {n:'Roshia Deverger',id:'',email:'roshiadeverger@yahoo.com'},
+  {n:'Samantha Taylor',id:21019,email:'sjaet5@gmail.com'},
+  {n:'Sha\'Terrell Jones',id:'',email:'shaterrellj32@yahoo.com'},
+  {n:'Shaundretta Drake',id:58099,email:'shaundrettadrake@yahoo.com'},
+  {n:'Shaunta Evans',id:'',email:'evans1_lovely@yahoo.com'},
+  {n:'Sydney Stasinos',id:58262,email:'syds0828@hotmail.com'},
+  {n:'Taneakqua Duckworth',id:56183,email:'taneakqua2010@yahoo.com'},
+  {n:'Terrence Jones',id:'',email:'terrence@bdashlogistics.com'},
+  {n:'Tory Wright',id:55898,email:'tory.wright18@yahoo.com'},
+  {n:'Tyla Foster',id:'',email:'Tylaf@ymail.com'},
+  {n:'Weyinmi Rose',id:'',email:'logisticsnax@gmail.com'},
+  {n:'Wintress Woodard',id:'',email:'wintress.woodard@gmail.com'}
 ];
 function getDM(){const m={};DRIVERS.forEach(d=>m[d.n]=d.id);return m;}
 const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
@@ -1676,7 +1869,8 @@ const DEFAULT_TMPL=JSON.parse(JSON.stringify(TMPL));
 
 let discEntries=[];
 function save(){localStorage.setItem('rdt_routes',JSON.stringify(routeEntries));localStorage.setItem('rdt_sd',JSON.stringify(sdEntries));localStorage.setItem('rdt_wk',document.getElementById('wk').value);localStorage.setItem('rdt_tmpl',JSON.stringify(TMPL));localStorage.setItem('rdt_drivers',JSON.stringify(DRIVERS));localStorage.setItem('rdt_bakolocs',JSON.stringify(BAKO_LOCS));localStorage.setItem('rdt_deklocs',JSON.stringify(DEKALB_LOCS));localStorage.setItem('rdt_aptsun',JSON.stringify(APTIVE_SUN));localStorage.setItem('rdt_aptwkd',JSON.stringify(APTIVE_WKD));localStorage.setItem('rdt_disc',JSON.stringify(discEntries));}
-function load(){try{routeEntries=JSON.parse(localStorage.getItem('rdt_routes')||'[]');sdEntries=JSON.parse(localStorage.getItem('rdt_sd')||'[]');const w=localStorage.getItem('rdt_wk');if(w)document.getElementById('wk').value=w;const t=localStorage.getItem('rdt_tmpl');if(t)TMPL.splice(0,TMPL.length,...JSON.parse(t));const dr=localStorage.getItem('rdt_drivers');if(dr)DRIVERS.splice(0,DRIVERS.length,...JSON.parse(dr));const bl=localStorage.getItem('rdt_bakolocs');if(bl)BAKO_LOCS.splice(0,BAKO_LOCS.length,...JSON.parse(bl));const dl=localStorage.getItem('rdt_deklocs');if(dl)DEKALB_LOCS.splice(0,DEKALB_LOCS.length,...JSON.parse(dl));const as=localStorage.getItem('rdt_aptsun');if(as)APTIVE_SUN.splice(0,APTIVE_SUN.length,...JSON.parse(as));const aw=localStorage.getItem('rdt_aptwkd');if(aw)APTIVE_WKD.splice(0,APTIVE_WKD.length,...JSON.parse(aw));const di=localStorage.getItem('rdt_disc');if(di)discEntries.splice(0,discEntries.length,...JSON.parse(di));}catch(e){}}
+function load(){try{routeEntries=JSON.parse(localStorage.getItem('rdt_routes')||'[]');sdEntries=JSON.parse(localStorage.getItem('rdt_sd')||'[]');const w=localStorage.getItem('rdt_wk');if(w)document.getElementById('wk').value=w;const t=localStorage.getItem('rdt_tmpl');if(t)TMPL.splice(0,TMPL.length,...JSON.parse(t));const dr=localStorage.getItem('rdt_drivers');if(dr){const loaded=JSON.parse(dr);// Merge emails/phones from default DRIVERS into loaded roster
+const defaults={};DRIVERS.forEach(d=>defaults[d.n]=d);loaded.forEach(d=>{if(defaults[d.n]){if(!d.email&&defaults[d.n].email)d.email=defaults[d.n].email;if(!d.phone&&defaults[d.n].phone)d.phone=defaults[d.n].phone;}});DRIVERS.splice(0,DRIVERS.length,...loaded);save();}const bl=localStorage.getItem('rdt_bakolocs');if(bl)BAKO_LOCS.splice(0,BAKO_LOCS.length,...JSON.parse(bl));const dl=localStorage.getItem('rdt_deklocs');if(dl)DEKALB_LOCS.splice(0,DEKALB_LOCS.length,...JSON.parse(dl));const as=localStorage.getItem('rdt_aptsun');if(as)APTIVE_SUN.splice(0,APTIVE_SUN.length,...JSON.parse(as));const aw=localStorage.getItem('rdt_aptwkd');if(aw)APTIVE_WKD.splice(0,APTIVE_WKD.length,...JSON.parse(aw));const di=localStorage.getItem('rdt_disc');if(di)discEntries.splice(0,discEntries.length,...JSON.parse(di));}catch(e){}}
 function clearAllData(){if(!confirm('Clear all entries for this week? The route template will not be affected.'))return;routeEntries=[];sdEntries=[];settlements=[];save();updateSum();renderSdAll();document.getElementById('sett-list').innerHTML='<div style="text-align:center;padding:30px;color:#aaa">Cleared. Load the template to start a new week.</div>';toast('Week cleared');}
 function resetTemplate(){if(!confirm('Reset the route template back to the original default? Any added or deleted routes will be lost.'))return;TMPL.splice(0,TMPL.length,...JSON.parse(JSON.stringify(DEFAULT_TMPL)));save();buildRouteTemplate();toast('Template reset to default');}
 
@@ -1771,7 +1965,13 @@ function buildRouteTemplate(){
           <button class="xb" style="color:#1D9E75;border-color:#1D9E75;font-size:10px;padding:2px 8px" onclick="addDay(${ri},'${d}')" title="Add ${d} for this route">+ Add</button>
         </td>`;
       } else {
-        h+=`<td style="border-left:2px solid #ddd;padding:3px 5px"><select data-ri="${ri}" data-d="${d}" style="font-size:10px;width:100%;min-width:140px;border:1px solid #ccc;padding:2px 4px;background:#fff;border-radius:2px"><option value="">— assign driver —</option>${drvOpts(c[0])}</select></td>`;
+        h+=`<td style="border-left:2px solid #ddd;padding:3px 5px"><select data-ri="${ri}" data-d="${d}" style="font-size:10px;width:100%;min-width:140px;border:1px solid #ccc;padding:2px 4px;background:#fff;border-radius:2px"><option value="">— assign driver —</option>${drvOpts(c[0])}</select>
+          <div style="display:flex;gap:3px;margin-top:3px;align-items:center">
+            <input type="time" data-ri="${ri}" data-d="${d}" data-f="st" value="${c[3]||''}" title="Start Time" style="font-size:9px;border:1px solid #ddd;padding:2px 3px;border-radius:2px;flex:1;min-width:70px;color:#555">
+            <span style="font-size:9px;color:#bbb">→</span>
+            <input type="time" data-ri="${ri}" data-d="${d}" data-f="et" value="${c[4]||''}" title="End Time" style="font-size:9px;border:1px solid #ddd;padding:2px 3px;border-radius:2px;flex:1;min-width:70px;color:#555">
+          </div>
+        </td>`;
         h+=`<td class="owner-only" style="padding:3px 4px"><input type="number" data-ri="${ri}" data-d="${d}" data-f="ll" value="${c[1]}" step=".01" min="0" style="width:60px;font-family:monospace;font-size:10px;border:1px solid #ccc;padding:2px 4px;text-align:right;border-radius:2px"></td>`;
         h+=`<td style="padding:3px 4px"><input type="number" data-ri="${ri}" data-d="${d}" data-f="dp" value="${c[2]}" step=".01" min="0" style="width:60px;font-family:monospace;font-size:10px;border:1px solid #ccc;padding:2px 4px;text-align:right;border-radius:2px"></td>`;
         h+=`<td style="padding:2px 3px;text-align:center"><button class="xb" style="color:#E85D24;border-color:#E85D24;font-size:10px;padding:1px 5px" onclick="removeDay(${ri},'${d}')" title="Remove ${d} from this route">−</button></td>`;
@@ -1799,14 +1999,22 @@ function loadWeekFromTemplate(){
     const ri=parseInt(el.dataset.ri);const d=el.dataset.d;
     if(TMPL[ri]&&TMPL[ri][d])TMPL[ri][d][2]=parseFloat(el.value)||0;
   });
+  document.querySelectorAll('#route-template-wrap input[data-ri][data-f="st"]').forEach(el=>{
+    const ri=parseInt(el.dataset.ri);const d=el.dataset.d;
+    if(TMPL[ri]&&TMPL[ri][d])TMPL[ri][d][3]=el.value||'';
+  });
+  document.querySelectorAll('#route-template-wrap input[data-ri][data-f="et"]').forEach(el=>{
+    const ri=parseInt(el.dataset.ri);const d=el.dataset.d;
+    if(TMPL[ri]&&TMPL[ri][d])TMPL[ri][d][4]=el.value||'';
+  });
   save();
   routeEntries=[];
   TMPL.forEach((row,ri)=>{
     DAYS.forEach((d,di)=>{
       const c=row[d];
       if(!c||!c[0])return;
-      const ll=c[1],dp=c[2];
-      routeEntries.push({id:Date.now()+Math.random(),driver:c[0],driverNum:getDM()[c[0]]||'',date:dates[di],type:'route',route:row.r,ll,dp,pf:+(ll-dp).toFixed(2),notes:''});
+      const ll=c[1],dp=c[2],st=c[3]||'',et=c[4]||'';
+      routeEntries.push({id:Date.now()+Math.random(),driver:c[0],driverNum:getDM()[c[0]]||'',date:dates[di],type:'route',route:row.r,ll,dp,pf:+(ll-dp).toFixed(2),startTime:st,endTime:et,notes:''});
     });
   });
   save();updateSum();
@@ -1995,17 +2203,30 @@ function calcDed(gross){
   return{gross,misc,of,cnf,ins,net:+(gross-misc-of-cnf-ins).toFixed(2)};
 }
 
+const OWNER_DRIVER='Barry Dunn';
+const OWNER_PROFIT_SHARE=0.65;
+
 function calcSett(){
   const all=[...routeEntries,...sdEntries];
   if(!all.length){toast('No entries yet. Load the template or add daily entries first.');return;}
   const by={};
   all.forEach(e=>{
-    if(!by[e.driver])by[e.driver]={gross:0,num:e.driverNum,routes:[],stats:[]};
-    by[e.driver].gross+=e.dp;
+    if(!by[e.driver])by[e.driver]={driverPay:0,num:e.driverNum,routes:[],stats:[]};
+    by[e.driver].driverPay+=e.dp;
     if(e.type==='route') by[e.driver].routes.push(e);
     else by[e.driver].stats.push(e);
   });
-  settlements=Object.entries(by).map(([name,d])=>({name,num:d.num,routes:d.routes,stats:d.stats,...calcDed(d.gross)})).sort((a,b)=>a.name.localeCompare(b.name));
+  settlements=Object.entries(by).map(([name,d])=>{
+    if(name===OWNER_DRIVER){
+      // Barry's gross = his driver pay + 65% of all company profit
+      const totalPf=[...d.routes,...d.stats].reduce((s,e)=>s+(e.pf||0),0);
+      const profitShare=+(totalPf*OWNER_PROFIT_SHARE).toFixed(2);
+      const gross=+(d.driverPay+profitShare).toFixed(2);
+      const ded=calcDed(gross);
+      return{name,num:d.num,routes:d.routes,stats:d.stats,driverPay:+d.driverPay.toFixed(2),profitShare,...ded};
+    }
+    return{name,num:d.num,routes:d.routes,stats:d.stats,...calcDed(d.driverPay)};
+  }).sort((a,b)=>a.name.localeCompare(b.name));
   renderSett();renderGusto();updateSum();sw('settlement');
   showLLFinalizeBtn();
 }
@@ -2022,6 +2243,9 @@ function renderSett(){
       </div>
       <div class="scb" id="sc-${i}">
         <div class="sr"><span class="sl">Gross Pay</span><span class="sv">$${s.gross.toFixed(2)}</span></div>
+        ${s.name===OWNER_DRIVER&&s.profitShare?`
+        <div class="sr" style="padding-left:16px"><span class="sl" style="color:#888;font-size:10px">↳ Driver Pay</span><span class="sv" style="color:#888;font-size:10px">$${s.driverPay.toFixed(2)}</span></div>
+        <div class="sr" style="padding-left:16px"><span class="sl" style="color:#1D9E75;font-size:10px">↳ 65% Profit Share</span><span class="sv" style="color:#1D9E75;font-size:10px">$${s.profitShare.toFixed(2)}</span></div>`:''}
         <div class="sr"><span class="sl">Misc Deduction</span><span class="sv neg">− $${s.misc.toFixed(2)}</span></div>
         <div class="sr"><span class="sl">OF Fee</span><span class="sv neg">− $${s.of.toFixed(2)}</span></div>
         <div class="sr"><span class="sl">C&F Occ. Acc. (1.32%)</span><span class="sv neg">− $${s.cnf.toFixed(2)}</span></div>
@@ -2076,7 +2300,8 @@ function buildSettlementHTML(s){
     earningsRows+=`<tr><td colspan="3" style="background:#f5f4f0;font-weight:700;font-size:11px;padding:6px 10px;border-top:1.5px solid #ddd">${fmtDate(date)}</td></tr>`;
     dayRoutes.forEach(e=>{
       routeTotal+=e.dp;
-      earningsRows+=`<tr><td style="padding:5px 10px 5px 20px;font-size:11px">${e.route}</td><td style="padding:5px 10px;font-size:11px;color:#555">Lab Route</td><td style="padding:5px 10px;font-size:11px;text-align:right;font-family:monospace;white-space:nowrap">$${e.dp.toFixed(2)}</td></tr>`;
+      const timeStr = (e.startTime||e.endTime) ? `<span style="font-size:10px;color:#aaa;margin-left:6px">${e.startTime||''}${e.startTime&&e.endTime?' – ':''}${e.endTime||''}</span>` : '';
+      earningsRows+=`<tr><td style="padding:5px 10px 5px 20px;font-size:11px">${e.route}${timeStr}</td><td style="padding:5px 10px;font-size:11px;color:#555">Lab Route</td><td style="padding:5px 10px;font-size:11px;text-align:right;font-family:monospace;white-space:nowrap">$${e.dp.toFixed(2)}</td></tr>`;
     });
     dayStats.forEach(e=>{
       statTotal+=e.dp;
@@ -2159,6 +2384,9 @@ ${(s.stats||[]).length>0?`<table><tbody><tr class="sub-row"><td>Stat / Same-Day 
 <table>
   <tbody>
     <tr class="gross-row"><td>Gross Earnings</td><td class="r">$${s.gross.toFixed(2)}</td></tr>
+    ${s.name===OWNER_DRIVER&&s.profitShare?`
+    <tr><td style="padding:3px 10px 3px 24px;font-size:10px;color:#555">Driver Pay</td><td style="padding:3px 10px;font-size:10px;text-align:right;color:#555">$${s.driverPay.toFixed(2)}</td></tr>
+    <tr><td style="padding:3px 10px 5px 24px;font-size:10px;color:#1D9E75">65% Owner Profit Share</td><td style="padding:3px 10px 5px;font-size:10px;text-align:right;color:#1D9E75">$${s.profitShare.toFixed(2)}</td></tr>`:''}
     <tr class="ded-row"><td class="ded-neg">Misc Deduction</td><td class="r ded-neg">− $${s.misc.toFixed(2)}</td></tr>
     <tr class="ded-row"><td class="ded-neg">OF Fee</td><td class="r ded-neg">− $${s.of.toFixed(2)}</td></tr>
     <tr class="ded-row"><td class="ded-neg">C&F Occupational Accident (1.32%)</td><td class="r ded-neg">− $${s.cnf.toFixed(2)}</td></tr>
@@ -2189,9 +2417,10 @@ function emailSettlement(i){
   const wkEnd=wk?getWeekEnd(wk):'';
   const settDate=calcSettlementDate(wk);
   const firstName=s.name.split(' ')[0];
-  const emailTo=prompt('Enter email address for '+s.name+':');
+  const rosterEmail=getDriverEmail(s.name);
+  const emailTo=rosterEmail||prompt('Enter email address for '+s.name+' (or add it in the Drivers tab):');
   if(emailTo===null)return;
-  if(!emailTo.trim()){toast('No email entered.');return;}
+  if(!emailTo.trim()){toast('No email entered. Add it in the Drivers tab to skip this step.');return;}
   const subject=encodeURIComponent('Settlement Statement — '+s.name+(wk?' | Week of '+fmtDate(wk):''));
   const body=encodeURIComponent(
     'Hi '+firstName+',\n\n'+
@@ -2396,7 +2625,7 @@ function renderPriceTables(){
 }
 
 function dlCSV(rows,name){const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();}
-function expRoutesCSV(){const rows=[['Driver','Driver #','Date','Route','LL Price','Driver Pay','Co Profit']];routeEntries.forEach(e=>rows.push([e.driver,e.driverNum,e.date,e.route,e.ll.toFixed(2),e.dp.toFixed(2),e.pf.toFixed(2)]));dlCSV(rows,'route_entries.csv');}
+function expRoutesCSV(){const rows=[['Driver','Driver #','Date','Route','Start Time','End Time','LL Price','Driver Pay','Co Profit']];routeEntries.forEach(e=>rows.push([e.driver,e.driverNum,e.date,e.route,e.startTime||'',e.endTime||'',e.ll.toFixed(2),e.dp.toFixed(2),e.pf.toFixed(2)]));dlCSV(rows,'route_entries.csv');}
 function expGusto(){const rows=[['Name','Driver Number','Contractor Type','Gross','Misc Ded','OF Fee','C&F','Insurance','Net']];settlements.forEach(s=>rows.push([s.name,s.num,'Contractor',s.gross.toFixed(2),s.misc.toFixed(2),s.of.toFixed(2),s.cnf.toFixed(2),s.ins.toFixed(2),s.net.toFixed(2)]));dlCSV(rows,'gusto_export.csv');}
 function expAll(){const rows=[['Driver','Driver #','Date','Type','Route/Location','Pickup','Delivery','LL Rate','Driver Pay','Co Profit','Notes']];[...routeEntries,...sdEntries].forEach(e=>rows.push([e.driver,e.driverNum||'',e.date,TLBL[e.type]||e.type,e.route||e.locName||'',e.pu||'',e.dl||'',e.ll.toFixed(2),e.dp.toFixed(2),e.pf.toFixed(2),e.notes||'']));dlCSV(rows,'all_entries.csv');}
 
@@ -2669,12 +2898,14 @@ function refreshAllDriverDropdowns(){
 function renderDriverTable(){
   const sorted=sortedDrivers();
   const tb=document.getElementById('drv-table-body');
-  if(!sorted.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa">No drivers yet. Add one above.</td></tr>';return;}
+  if(!sorted.length){tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">No drivers yet. Add one above.</td></tr>';return;}
   tb.innerHTML=sorted.map((d,i)=>`
     <tr>
       <td class="mn" style="color:#aaa">${i+1}</td>
       <td style="font-weight:500">${d.n}</td>
       <td class="mn">${d.id||'—'}</td>
+      <td style="font-size:11px">${d.email?`<a href="mailto:${d.email}" style="color:#185FA5;text-decoration:none">${d.email}</a>`:'<span style="color:#ccc">—</span>'}</td>
+      <td style="font-size:11px;color:#888">${d.phone||'—'}</td>
       <td style="text-align:center"><button class="xb" style="color:#185FA5;border-color:#185FA5" onclick="editDriver('${d.n.replace(/'/g,"\\'")}')">Edit</button></td>
       <td style="text-align:center"><button class="xb" style="color:#E85D24;border-color:#E85D24" onclick="removeDriver('${d.n.replace(/'/g,"\\'")}')">Remove</button></td>
     </tr>`).join('');
@@ -2685,19 +2916,21 @@ function saveDriver(){
   const fname=document.getElementById('drv-fname').value.trim();
   const lname=document.getElementById('drv-lname').value.trim();
   const num=document.getElementById('drv-num').value.trim();
+  const email=document.getElementById('drv-email').value.trim();
+  const phone=document.getElementById('drv-phone').value.trim();
   const editIdx=document.getElementById('drv-edit-idx').value;
   if(!fname||!lname){toast('Please enter both first and last name.');return;}
   const fullName=fname+' '+lname;
   const numVal=num?parseInt(num)||num:num;
   if(editIdx===''){
     if(DRIVERS.find(d=>d.n===fullName)){toast('A driver named "'+fullName+'" already exists.');return;}
-    DRIVERS.push({n:fullName,id:numVal});
+    DRIVERS.push({n:fullName,id:numVal,email,phone});
     toast('Driver "'+fullName+'" added');
   } else {
     const idx=parseInt(editIdx);
     const oldName=DRIVERS[idx].n;
     TMPL.forEach(row=>DAYS.forEach(d=>{if(row[d]&&row[d][0]===oldName)row[d][0]=fullName;}));
-    DRIVERS[idx]={n:fullName,id:numVal};
+    DRIVERS[idx]={n:fullName,id:numVal,email,phone};
     toast('Driver "'+fullName+'" updated');
     document.getElementById('drv-form-title').textContent='Add New Driver';
     document.getElementById('drv-edit-idx').value='';
@@ -2708,6 +2941,8 @@ function saveDriver(){
   document.getElementById('drv-fname').value='';
   document.getElementById('drv-lname').value='';
   document.getElementById('drv-num').value='';
+  document.getElementById('drv-email').value='';
+  document.getElementById('drv-phone').value='';
 }
 
 function editDriver(name){
@@ -2720,6 +2955,8 @@ function editDriver(name){
   document.getElementById('drv-fname').value=fname;
   document.getElementById('drv-lname').value=lname;
   document.getElementById('drv-num').value=d.id||'';
+  document.getElementById('drv-email').value=d.email||'';
+  document.getElementById('drv-phone').value=d.phone||'';
   document.getElementById('drv-edit-idx').value=idx;
   document.getElementById('drv-form-title').textContent='Edit Driver — '+d.n;
   document.getElementById('drv-fname').focus();
@@ -2730,8 +2967,16 @@ function cancelEditDriver(){
   document.getElementById('drv-fname').value='';
   document.getElementById('drv-lname').value='';
   document.getElementById('drv-num').value='';
+  document.getElementById('drv-email').value='';
+  document.getElementById('drv-phone').value='';
   document.getElementById('drv-edit-idx').value='';
   document.getElementById('drv-form-title').textContent='Add New Driver';
+}
+
+// Look up a driver's email from the roster
+function getDriverEmail(name){
+  const d=DRIVERS.find(x=>x.n===name);
+  return (d&&d.email)?d.email:'';
 }
 
 function removeDriver(name){
@@ -3421,7 +3666,8 @@ function emailAmSettlement(driverName, net, gross, opp) {
   const settDate = calcAmSettlementDate(wkEnd);
   const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'}) : '—';
   const firstName = driverName.split(' ')[0];
-  const emailTo = prompt('Enter email address for '+driverName+':');
+  const rosterEmail=getDriverEmail(driverName);
+  const emailTo = rosterEmail || prompt('Enter email address for '+driverName+' (or add it in the Drivers tab):');
   if(!emailTo)return;
   const subject = encodeURIComponent('Settlement Statement — '+driverName+' | Allmed On-Demand | Pay Period '+wkStart);
   const body = encodeURIComponent(
@@ -3448,7 +3694,8 @@ function emailAmSettlement(driverName, net, gross, opp) {
   const settDate = calcAmSettlementDate(wkEnd);
   const fmtDate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'}) : '—';
   const firstName = driverName.split(' ')[0];
-  const emailTo = prompt('Enter email address for '+driverName+':');
+  const rosterEmail=getDriverEmail(driverName);
+  const emailTo = rosterEmail || prompt('Enter email address for '+driverName+' (or add it in the Drivers tab):');
   if(!emailTo)return;
   const subject = encodeURIComponent('Settlement Statement — '+driverName+' | Allmed On-Demand | Pay Period '+wkStart);
   const body = encodeURIComponent(
@@ -5282,7 +5529,12 @@ function openDispatchModal() {
   loadDispatchPrefs();
   const p = dispatchPrefs;
   const setVal = (id,v) => { const el=document.getElementById(id); if(el) el.value=v||''; };
-  setVal('dispatch-to', p.dispatchTo); setVal('dispatch-cc', p.dispatchCc); setVal('driver-to', p.driverTo);
+  setVal('dispatch-to', p.dispatchTo); setVal('dispatch-cc', p.dispatchCc);
+  // Auto-fill driver email(s) from roster
+  const selDrivers=[...new Set(sel.map(e=>e.driver))];
+  const rosterEmails=selDrivers.map(n=>getDriverEmail(n)).filter(Boolean);
+  const driverEmailVal = rosterEmails.length ? rosterEmails.join(', ') : (p.driverTo||'');
+  setVal('driver-to', driverEmailVal);
   ['driverNum','driver','date','cutoff','pu','type','ll','locName','dl','notes','dp'].forEach(f=>{
     const el=document.getElementById('df-'+f);
     if(el&&p.dispatchFields&&p.dispatchFields[f]!==undefined) el.checked=p.dispatchFields[f];
@@ -5481,6 +5733,1501 @@ function copyDriverEmail(){
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// LAB LOGISTICS — SMART SPREADSHEET IMPORT
+// Intelligently detects columns, route vs stat entries, and maps any workbook
+// format to the Driver Tracker data model without requiring a fixed template.
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _importParsed = null;   // validated rows pending confirmation
+let _importMeta   = null;   // detected metadata about the file
+
+// ── Type detection: maps any recognisable label → internal type key ──────────
+const TYPE_SYNONYMS = {
+  route:        ['route','lab route','weekly route','wk route','llga','natera','pathga','bakoga','dekalb','gbmc','bxdx','maywdc','neova','chur','zrlatl','biore','cblga','endoch'],
+  'aptive-sun': ['aptive sun','aptive sunday','aptive-sun','aptive-s'],
+  'aptive-wkd': ['aptive wkd','aptive mon','aptive weekday','aptive-wkd','aptive-w','aptive'],
+  bako:         ['bako','bako od','bako on-demand','bako on demand'],
+  dekalb:       ['dekalb','dekalb od','dekalb on-demand','dekalb on demand'],
+  ondemand:     ['on-demand','on demand','ondemand','cleveland','cbl','neo','nxgen','grailbio','irl','memorial','pathgroup','vizia','misc od'],
+  misc:         ['misc','miscellaneous','other','manual'],
+};
+
+function detectType(raw) {
+  if (!raw) return null;
+  const s = String(raw).toLowerCase().trim();
+  for (const [key, syns] of Object.entries(TYPE_SYNONYMS)) {
+    // Exact match first
+    if (syns.includes(s)) return key;
+    // Route: if value looks like a known route code
+    if (key === 'route' && /^(llga|natera|path|bakoga|dekalb|gbmc|bxdx|maywdc|neova|chur0|zrlatl|biore|cblga|endoch)/i.test(s)) return 'route';
+  }
+  return null;
+}
+
+// ── Column name fuzzy matcher ─────────────────────────────────────────────────
+const COL_ALIASES = {
+  driver:      ['driver','driver name','name','contractor','employee'],
+  driverNum:   ['driver #','driver#','driver number','driver num','number','id','contractor #','employee #'],
+  date:        ['date','service date','work date','delivery date','day'],
+  type:        ['type','entry type','stop type','category','kind','route'],
+  route:       ['route','route name','route/location','route / location','location','route id'],
+  pu:          ['pickup','pick up','pickup location','pick-up','origin','from','pickup address'],
+  dl:          ['delivery','delivery location','drop','drop off','dropoff','destination','to','delivery address'],
+  cutoff:      ['pickup by','pickup by / access until','cutoff','access','access type','cutoff / access until','by','deadline'],
+  ll:          ['ll rate','ll price','ll','client rate','company price','bdash price','bdash rate','price','rate','amount','total','gross'],
+  dp:          ['driver pay','driver payment','driver price','pay','payment','driver amount','net','dr pay'],
+  pf:          ['co profit','profit','company profit','margin','co. profit'],
+  notes:       ['notes','note','comment','comments','remarks','memo','description'],
+  order:       ['order','order #','order number','order no','orderid'],
+  account:     ['account','account name','client','lab','hospital','pharmacy'],
+  dispatcher:  ['dispatcher','dispatch','dispatched by'],
+  status:      ['status','disc status','discrepancy status'],
+  agreed:      ['agreed','agreed amount','agreed price','should be'],
+  paid:        ['paid','paid amount','amount paid','actual'],
+};
+
+function detectCol(header) {
+  const h = String(header).toLowerCase().trim().replace(/[^a-z0-9 #\/]/g,'');
+  for (const [field, aliases] of Object.entries(COL_ALIASES)) {
+    if (aliases.some(a => h === a || h.includes(a) || a.includes(h.split(' ')[0]))) return field;
+  }
+  return null;
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function toggleLLImport() {
+  const p = document.getElementById('ll-import-panel');
+  const open = p.style.display === 'none';
+  p.style.display = open ? '' : 'none';
+  if (open) {
+    const wk = document.getElementById('wk').value;
+    if (wk) document.getElementById('ll-import-wk').value = wk;
+    cancelLLImport();
+  }
+}
+
+function llDragOver(e) {
+  e.preventDefault();
+  const z = document.getElementById('ll-drop-zone');
+  z.style.borderColor = '#1D9E75'; z.style.background = '#0a1a12';
+}
+function llDragLeave() {
+  const z = document.getElementById('ll-drop-zone');
+  z.style.borderColor = '#333'; z.style.background = '';
+}
+function llDrop(e) {
+  e.preventDefault(); llDragLeave();
+  const file = e.dataTransfer.files[0];
+  if (file) processImportFile(file);
+}
+function llFileSelected(e) {
+  const file = e.target.files[0];
+  if (file) processImportFile(file);
+  e.target.value = '';
+}
+
+// ── File → CSV text ───────────────────────────────────────────────────────────
+function processImportFile(file) {
+  setImportStatus('loading', '⏳ Reading: ' + file.name, '', false);
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'json') {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data._bdashImport) {
+          setImportStatus('error','✕ Not a BDash import file',
+            'This JSON file was not produced by the BDash converter script. ' +
+            'Download the converter script and run it on your .xlsm file first.', false);
+          return;
+        }
+        parseJSON(data, file.name);
+      } catch(err) {
+        setImportStatus('error','✕ JSON parse failed','Error: '+err.message, false);
+      }
+    };
+    reader.readAsText(file);
+
+  } else if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => smartParseImport(e.target.result, file.name);
+    reader.readAsText(file);
+
+  } else {
+    setImportStatus('error','✕ Unsupported format',
+      'Please drop a <strong style="color:#6ee7b7">workbook_import.json</strong> file (produced by the converter script) or a <strong style="color:#6ee7b7">.csv</strong> file.<br><br>' +
+      'To import an .xlsm workbook: download the <strong>⬇ Converter Script</strong> and run it in Terminal/Command Prompt first.', false);
+  }
+}
+
+// ── Core CSV row parser ───────────────────────────────────────────────────────
+function parseCSVRows(csvText) {
+  function parseRow(line) {
+    const fields = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
+      else if (ch === ',' && !inQ) { fields.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    fields.push(cur);
+    return fields.map(f => f.trim().replace(/^"|"$/g,'').replace(/""/g,'"'));
+  }
+  return csvText.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(parseRow);
+}
+
+// ── Date normaliser — handles many formats ────────────────────────────────────
+function normaliseDate(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // M/D/YYYY or MM/DD/YYYY
+  const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m1) return `${m1[3]}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`;
+  // M/D/YY
+  const m2 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+  if (m2) return `20${m2[3]}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
+  // Excel serial number (days since 1900-01-01)
+  if (/^\d{4,5}$/.test(s)) {
+    const d = new Date((parseInt(s)-25569)*86400*1000);
+    if (!isNaN(d)) return d.toISOString().slice(0,10);
+  }
+  // Try native parse
+  const parsed = new Date(s);
+  if (!isNaN(parsed)) return parsed.toISOString().slice(0,10);
+  return null;
+}
+
+// ── Sheet analyser — figures out what kind of data is in a sheet ──────────────
+function analyseSheet(rows, sheetName) {
+  // Find the header row (first row where ≥3 cells look like column names)
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const nonEmpty = rows[i].filter(c => c && String(c).trim()).length;
+    if (nonEmpty >= 2) { headerRowIdx = i; break; }
+  }
+
+  const headers = rows[headerRowIdx].map(h => String(h||'').trim());
+  const colMap  = {}; // field → column index
+  headers.forEach((h, i) => {
+    const field = detectCol(h);
+    if (field && !(field in colMap)) colMap[field] = i;
+  });
+
+  const dataRows = rows.slice(headerRowIdx + 1).filter(r => r.some(c => c && String(c).trim()));
+
+  return { headers, colMap, dataRows, sheetName };
+}
+
+// ── Smart entry extractor from a sheet analysis ───────────────────────────────
+function extractEntries(analysis) {
+  const { colMap, dataRows, sheetName } = analysis;
+  const get = (row, field) => {
+    const idx = colMap[field];
+    return (idx !== undefined && idx < row.length) ? String(row[idx]||'').trim() : '';
+  };
+
+  const knownDriverNames = new Set(DRIVERS.map(d => d.n.toLowerCase()));
+  const driverMap = getDM();
+
+  const routes = [], stats = [], discs = [], warnings = [];
+  let skipped = 0;
+
+  dataRows.forEach((row, ri) => {
+    const rowNum = ri + 2; // account for header
+
+    // Skip rows that are clearly subtotals or labels (first cell is a known label)
+    const firstCell = String(row[0]||'').trim().toLowerCase();
+    if (['total','subtotal','sum','grand total','','driver','date'].includes(firstCell) && !row[1]) { skipped++; return; }
+
+    const driverRaw = get(row,'driver') || get(row,'route') || '';
+    if (!driverRaw) { skipped++; return; }
+
+    // Detect driver — try exact match first, then fuzzy
+    let driver = '';
+    let driverNum = get(row,'driverNum') || '';
+    const knownDriver = DRIVERS.find(d =>
+      d.n.toLowerCase() === driverRaw.toLowerCase() ||
+      String(d.id) === driverRaw.trim() ||
+      d.n.toLowerCase().includes(driverRaw.toLowerCase())
+    );
+    if (knownDriver) { driver = knownDriver.n; driverNum = driverNum || String(knownDriver.id); }
+    else { driver = driverRaw; if (!driverNum) driverNum = ''; }
+
+    const dateRaw = get(row,'date');
+    const date    = normaliseDate(dateRaw);
+
+    // Detect entry type
+    const typeRaw   = get(row,'type');
+    const routeRaw  = get(row,'route') || get(row,'pu') || '';
+    let   typeKey   = detectType(typeRaw) || detectType(routeRaw) || detectType(driverRaw);
+
+    // Numeric fields
+    const llRaw = get(row,'ll');  const ll = parseFloat(llRaw)||0;
+    const dpRaw = get(row,'dp');  const dp = parseFloat(dpRaw)||0;
+    const pfRaw = get(row,'pf');  const pf = pfRaw ? parseFloat(pfRaw)||+(ll-dp).toFixed(2) : +(ll-dp).toFixed(2);
+
+    // Discrepancy detection: has agreed/paid/diff columns
+    const agreedRaw = get(row,'agreed'); const paidRaw = get(row,'paid');
+    if (agreedRaw || paidRaw) {
+      const agreed = parseFloat(agreedRaw)||0;
+      const paid   = parseFloat(paidRaw)||0;
+      if (date && driver) {
+        discs.push({
+          id: Date.now()+Math.random()+ri,
+          driver, driverNum, date,
+          order:      get(row,'order'),
+          route:      get(row,'route'),
+          account:    get(row,'account'),
+          agreed, paid, diff: +(agreed-paid).toFixed(2),
+          dispatcher: get(row,'dispatcher'),
+          status:     get(row,'status') || 'Not Submitted',
+          submitted:'', resolved:'',
+          _source: sheetName
+        });
+      }
+      return;
+    }
+
+    // If we still can't detect type, default based on sheet name
+    if (!typeKey) {
+      const sn = (sheetName||'').toLowerCase();
+      if      (sn.includes('route') || sn.includes('weekly')) typeKey = 'route';
+      else if (sn.includes('stat') || sn.includes('same'))    typeKey = 'misc';
+      else if (sn.includes('bako'))    typeKey = 'bako';
+      else if (sn.includes('dekalb')) typeKey = 'dekalb';
+      else if (sn.includes('aptive')) typeKey = 'aptive-sun';
+      else if (ll > 0 || dp > 0)      typeKey = 'misc';
+      else { skipped++; return; }
+    }
+
+    // Must have at least a driver and either a date or a route
+    if (!driver) { skipped++; return; }
+
+    const locName = typeKey !== 'route'
+      ? (get(row,'route') || get(row,'account') || get(row,'pu') || '')
+      : '';
+    const routeName = typeKey === 'route'
+      ? (get(row,'route') || driverRaw)
+      : '';
+
+    const entry = {
+      id:        Date.now()+Math.random()+ri,
+      driver,    driverNum: driverNum || driverMap[driver] || '',
+      date:      date || '',
+      type:      typeKey,
+      route:     routeName,
+      locName,
+      pu:        get(row,'pu'),
+      dl:        get(row,'dl'),
+      cutoff:    get(row,'cutoff'),
+      ll, dp,
+      pf:        +(pf).toFixed(2),
+      notes:     get(row,'notes'),
+      _source:   sheetName
+    };
+
+    if (typeKey === 'route') routes.push(entry);
+    else                     stats.push(entry);
+  });
+
+  return { routes, stats, discs, warnings, skipped };
+}
+
+// ── Main smart parser ─────────────────────────────────────────────────────────
+function smartParseImport(input, fileName) {
+  // For XLSX workbooks we pass the raw XLSX wb object via window._xlsxWb
+  if (window._xlsxWb) {
+    parseWorkbook(window._xlsxWb, fileName);
+    window._xlsxWb = null;
+    return;
+  }
+  // CSV / generic fallback
+  let sheets = [];
+
+  if (typeof input === 'string') {
+    sheets = [{ name: 'Sheet1', csv: input }];
+  } else {
+    sheets = input; // array of {name, csv}
+  }
+
+  const allRoutes = [], allStats = [], allDiscs = [];
+  const sheetSummaries = [];
+  const allWarnings = [];
+  let totalSkipped = 0;
+
+  sheets.forEach(({ name, csv }) => {
+    const rows = parseCSVRows(csv);
+    if (rows.length < 2) return;
+
+    const analysis = analyseSheet(rows, name);
+    if (Object.keys(analysis.colMap).length < 1 && analysis.dataRows.length < 1) return;
+
+    const { routes, stats, discs, warnings, skipped } = extractEntries(analysis);
+    allRoutes.push(...routes);
+    allStats.push(...stats);
+    allDiscs.push(...discs);
+    allWarnings.push(...warnings);
+    totalSkipped += skipped;
+
+    if (routes.length || stats.length || discs.length) {
+      sheetSummaries.push({
+        name,
+        detected: Object.entries(analysis.colMap).map(([k,v])=>`${k}→col${v+1}`).join(', '),
+        routes:   routes.length,
+        stats:    stats.length,
+        discs:    discs.length,
+        skipped
+      });
+    }
+  });
+
+  const total = allRoutes.length + allStats.length + allDiscs.length;
+
+  if (!total) {
+    setImportStatus('error','✕ No recognisable data found',
+      `The file was read but no entries could be extracted.<br><br>` +
+      `<strong>Tips:</strong><br>` +
+      `• Make sure your spreadsheet has column headers in the first row<br>` +
+      `• Include columns like: Driver, Date, Route, Driver Pay, LL Rate<br>` +
+      `• Download the template for the expected format`, false);
+    return;
+  }
+
+  _importParsed = { routes: allRoutes, stats: allStats, discs: allDiscs };
+  _importMeta   = { fileName, sheetSummaries, totalSkipped };
+
+  // ── Build preview HTML ──
+  const driverSet   = [...new Set([...allRoutes,...allStats].map(e=>e.driver))];
+  const dateSet     = [...new Set([...allRoutes,...allStats].filter(e=>e.date).map(e=>e.date))].sort();
+  const totalLL     = [...allRoutes,...allStats].reduce((s,e)=>s+e.ll,0);
+  const totalDP     = [...allRoutes,...allStats].reduce((s,e)=>s+e.dp,0);
+
+  const sheetBadges = sheetSummaries.map(s => `
+    <div style="background:#111;border:1px solid #222;border-radius:3px;padding:8px 12px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="color:#93C5FD;font-weight:700">${s.name}</span>
+        <div style="display:flex;gap:6px">
+          ${s.routes?`<span style="background:#14532d20;border:1px solid #14532d;color:#4ade80;padding:1px 7px;border-radius:2px;font-size:9px">${s.routes} routes</span>`:''}
+          ${s.stats?`<span style="background:#1e3a8a20;border:1px solid #1e3a8a;color:#93C5FD;padding:1px 7px;border-radius:2px;font-size:9px">${s.stats} stat</span>`:''}
+          ${s.discs?`<span style="background:#3730a320;border:1px solid #3730a3;color:#a5b4fc;padding:1px 7px;border-radius:2px;font-size:9px">${s.discs} disc.</span>`:''}
+          ${s.skipped?`<span style="background:#1a1a1a;border:1px solid #333;color:#666;padding:1px 7px;border-radius:2px;font-size:9px">${s.skipped} skipped</span>`:''}
+        </div>
+      </div>
+      <div style="font-size:9px;color:#555">Columns detected: ${s.detected}</div>
+    </div>`).join('');
+
+  const warnHTML = allWarnings.slice(0,6).map(w=>`<div style="color:#fbbf24;font-size:9px">⚠ ${w}</div>`).join('');
+
+  const previewRows = [...allRoutes.slice(0,3),...allStats.slice(0,3)].map(e=>
+    `<tr>
+      <td style="padding:3px 8px;border-bottom:1px solid #1a1a1a;color:#aaa">${e.driver}</td>
+      <td style="padding:3px 8px;border-bottom:1px solid #1a1a1a;color:#6ee7b7;font-family:monospace">${e.date||'—'}</td>
+      <td style="padding:3px 8px;border-bottom:1px solid #1a1a1a"><span style="font-size:9px;padding:1px 5px;border-radius:2px;background:#1e3a8a30;color:#93C5FD">${TLBL[e.type]||e.type}</span></td>
+      <td style="padding:3px 8px;border-bottom:1px solid #1a1a1a;color:#aaa;font-size:9px">${e.route||e.locName||'—'}</td>
+      <td style="padding:3px 8px;border-bottom:1px solid #1a1a1a;color:#fbbf24;font-family:monospace">$${e.dp.toFixed(2)}</td>
+    </tr>`).join('');
+
+  const bodyHTML = `
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px">
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Routes</div>
+        <div style="font-size:16px;font-weight:700;color:#4ade80">${allRoutes.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Stat/SD</div>
+        <div style="font-size:16px;font-weight:700;color:#93C5FD">${allStats.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Discrepancies</div>
+        <div style="font-size:16px;font-weight:700;color:#a5b4fc">${allDiscs.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">LL Revenue</div>
+        <div style="font-size:12px;font-weight:700;color:#fbbf24">$${totalLL.toFixed(2)}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Driver Pay</div>
+        <div style="font-size:12px;font-weight:700;color:#fbbf24">$${totalDP.toFixed(2)}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;font-size:9px;color:#666">
+      ${driverSet.length} driver${driverSet.length!==1?'s':''}: <span style="color:#aaa">${driverSet.join(', ')}</span>
+      ${dateSet.length ? ' &nbsp;·&nbsp; Dates: <span style="color:#aaa">' + dateSet[0] + ' → ' + dateSet[dateSet.length-1] + '</span>' : ''}
+      ${totalSkipped ? ' &nbsp;·&nbsp; <span style="color:#555">' + totalSkipped + ' rows skipped</span>' : ''}
+    </div>
+    <div style="margin-bottom:10px">${sheetBadges}</div>
+    ${previewRows ? `<div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Preview (first ${Math.min(6,total)} entries)</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        ${['Driver','Date','Type','Route/Location','Driver Pay'].map(h=>`<th style="font-size:8px;text-transform:uppercase;color:#555;text-align:left;padding:3px 8px;border-bottom:1px solid #222">${h}</th>`).join('')}
+      </tr></thead>
+      <tbody>${previewRows}</tbody>
+    </table>` : ''}
+    ${warnHTML ? '<div style="margin-top:8px">'+warnHTML+'</div>' : ''}`;
+
+  setImportStatus('ready',
+    `✓ Found ${total} entries across ${sheetSummaries.length} sheet${sheetSummaries.length!==1?'s':''} in ${fileName}`,
+    bodyHTML, true);
+}
+
+
+function parseWorkbook(wb, fileName) {
+  const sheetNames = wb.SheetNames;
+
+  // ── Helper: get cell value from a sheet by row/col (1-indexed) ──
+  function cv(ws, r, c) {
+    const addr = XLSX.utils.encode_cell({r: r-1, c: c-1});
+    const cell = ws[addr];
+    if (!cell) return null;
+    if (cell.t === 'd' || cell.v instanceof Date) {
+      const d = cell.v instanceof Date ? cell.v : new Date((cell.v - 25569) * 86400000);
+      return d.toISOString().slice(0,10);
+    }
+    if (cell.t === 'n' && cell.v > 40000 && cell.v < 60000 && cell.z) {
+      return new Date((cell.v - 25569) * 86400000).toISOString().slice(0,10);
+    }
+    return cell.v !== undefined ? cell.v : null;
+  }
+
+  // ── Helper: get all rows of a sheet as array-of-arrays ──
+  function sheetRows(ws, maxRow) {
+    if (!ws || !ws['!ref']) return [];
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const rows = [];
+    const end = maxRow ? Math.min(range.e.r, maxRow - 1) : range.e.r;
+    for (let r = 0; r <= end; r++) {
+      const row = [];
+      for (let c = 0; c <= Math.min(range.e.c, 30); c++) {
+        const addr = XLSX.utils.encode_cell({r, c});
+        const cell = ws[addr];
+        if (!cell) { row.push(null); continue; }
+        // Date cell: type 'd', or numeric with date format, or JS Date object
+        if (cell.t === 'd' || cell.v instanceof Date) {
+          const d = cell.v instanceof Date ? cell.v : new Date((cell.v - 25569) * 86400000);
+          row.push(d.toISOString().slice(0,10));
+        } else if (cell.t === 'n' && cell.v > 40000 && cell.v < 60000 && cell.z) {
+          // Numeric date serial with a format string
+          const d = new Date((cell.v - 25569) * 86400000);
+          row.push(d.toISOString().slice(0,10));
+        } else if (cell.w && /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test((cell.w||'').trim())) {
+          // Formatted value looks like a date string
+          row.push(cell.w.trim());
+        } else {
+          row.push(cell.v !== undefined ? cell.v : null);
+        }
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function fmtDate(v) {
+    if (!v) return null;
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+    if (typeof v === 'string') {
+      const m = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m) { const y = m[3].length===2?'20'+m[3]:m[3]; return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`; }
+    }
+    // Excel serial
+    if (typeof v === 'number' && v > 40000 && v < 60000) {
+      return new Date((v - 25569) * 86400000).toISOString().slice(0,10);
+    }
+    return null;
+  }
+
+  function clean(v) { return v !== null && v !== undefined ? String(v).trim() : ''; }
+  function isSkip(v) { return !v || ['choose driver','choose driver ','choose pick up location','choose pick up location ','0'].includes(String(v).trim().toLowerCase()); }
+
+  const errors = [], warns = [];
+  let idBase = Date.now();
+
+  // ── 1. DRIVER SHEET: col B=name, col C=number, rows 8–40 ──────────────────
+  const driverMap = {};  // name -> driverNum string
+  if (sheetNames.includes('Driver Sheet')) {
+    const ws = wb.Sheets['Driver Sheet'];
+    const rows = sheetRows(ws, 42);
+    for (let r = 7; r < Math.min(42, rows.length); r++) {
+      const name = clean(rows[r][1]);
+      const num  = rows[r][2];
+      if (name && name.toLowerCase() !== 'choose driver') {
+        driverMap[name] = num !== null && num !== undefined ? String(Math.round(Number(num) || 0) || num) : '';
+      }
+    }
+  }
+
+  // ── 2. ROUTE PRICES: row5=header row, row6+=data ──────────────────────────
+  // Cols: B=route, C/D=sun_ll/dp, E/F=mon, G/H=tue, I/J=wed, K/L=thu, M/N=fri, O/P=sat
+  const routePrices = {};
+  const DAY_COL_IDX = {sun:[2,3], mon:[4,5], tue:[6,7], wed:[8,9], thu:[10,11], fri:[12,13], sat:[14,15]};
+  if (sheetNames.includes('Route Prices')) {
+    const ws = wb.Sheets['Route Prices'];
+    const rows = sheetRows(ws, 55);
+    for (let r = 5; r < rows.length; r++) {
+      const rname = clean(rows[r][1]).toUpperCase();
+      if (!rname) continue;
+      routePrices[rname] = {};
+      for (const [day, [lc, dc]] of Object.entries(DAY_COL_IDX)) {
+        const ll = parseFloat(rows[r][lc]) || 0;
+        const dp = parseFloat(rows[r][dc]) || 0;
+        if (ll || dp) routePrices[rname][day] = [ll, dp];
+      }
+    }
+  }
+
+  // ── 3. ROUTE TRACKING: extract week dates + driver assignments ─────────────
+  const DAYS = ['sun','mon','tue','wed','thu','fri','sat'];
+  const routeEntries = [], sdEntries = [];
+  let wkStart = null, settDate = null;
+
+  if (sheetNames.includes('Route Tracking')) {
+    const ws = wb.Sheets['Route Tracking'];
+    const rows = sheetRows(ws, 40);
+
+    // Row 6 (idx 5): cols C-I (idx 2-8) = day dates
+    const dayDates = [];
+    for (let c = 2; c <= 8; c++) {
+      dayDates.push(fmtDate(rows[5] && rows[5][c]));
+    }
+    wkStart = dayDates[0];
+
+    // Row 5 (idx 4): col F (idx 5) = settlement date
+    settDate = fmtDate(rows[4] && rows[4][5]);
+
+    // Row 8+ (idx 7+): route data
+    for (let r = 7; r < rows.length; r++) {
+      const rname = clean(rows[r][1]);
+      if (!rname || rname === '0' || /^\d+$/.test(rname)) continue;
+      const rnameKey = rname.toUpperCase();
+
+      DAYS.forEach((day, di) => {
+        const drvRaw = rows[r][2 + di];
+        if (isSkip(drvRaw)) return;
+        const drv   = clean(drvRaw);
+        const date  = dayDates[di];
+        if (!date || !drv) return;
+
+        const prices = (routePrices[rnameKey] || {})[day] || [0, 0];
+        const [ll, dp] = prices;
+
+        routeEntries.push({
+          id: idBase + routeEntries.length,
+          driver: drv, driverNum: driverMap[drv] || getDM()[drv] || '',
+          date, type: 'route', route: rname,
+          locName: '', pu: '', dl: '', cutoff: '',
+          ll, dp, pf: +((ll - dp).toFixed(2)), notes: ''
+        });
+      });
+    }
+  }
+
+  // ── 4. STAT SHEETS — exact column positions confirmed from workbook inspection ──
+  // Bako/Dekalb/Aptive: col0=DrvNum, col1=DrvName, col2=Date, col3=PickupLoc, col4=Type, col5=LL, col6=DP, col7=Profit
+  // On-Demand:          col0=DrvNum, col1=DrvName, col2=Date, col3=Account, col4=Pickup, col5=Delivery, col6=LL, col7=DP, col8=Profit
+
+  const BDA_SHEETS = [
+    ['Bako Monday','bako'],['Bako Tuesday','bako'],['Bako Wednesday','bako'],
+    ['Bako Thursday','bako'],['Bako Friday','bako'],
+    ['Dekalb Monday','dekalb'],['Dekalb Tuesday','dekalb'],['Dekalb Wednesday','dekalb'],
+    ['Dekalb Thursday','dekalb'],['Dekalb Friday','dekalb'],
+    ['Aptive Sunday','aptive-sun'],
+    ['Aptive Monday','aptive-wkd'],['Aptive Tuesday','aptive-wkd'],
+    ['Aptive Wednesday','aptive-wkd'],['Aptive Thursday','aptive-wkd'],['Aptive Friday','aptive-wkd'],
+  ];
+  const OD_SHEETS = [
+    ['On-Demand Sunday','ondemand'],['On-Demand Monday','ondemand'],['On-Demand Tuesday','ondemand'],
+    ['On-Demand Wednesday','ondemand'],['On-Demand Thursday','ondemand'],
+    ['On-Demand Friday','ondemand'],['On-Demand Saturday','ondemand'],
+  ];
+
+  const STAT_SHEET_MAP = [...BDA_SHEETS, ...OD_SHEETS]; // kept for preview badge list
+
+  BDA_SHEETS.forEach(([sheetName, typeKey]) => {
+    if (!sheetNames.includes(sheetName)) return;
+    const rows = sheetRows(wb.Sheets[sheetName], 60);
+    for (let r = 6; r < rows.length; r++) {
+      const row = rows[r];
+      const drvName = clean(row[1]);
+      if (!drvName || isSkip(drvName)) continue;
+      const date = fmtDate(row[2]);
+      if (!date) continue;
+      const drvNumRaw = row[0];
+      const drvNum = drvNumRaw ? String(Math.round(Number(drvNumRaw)||0)||drvNumRaw) : (driverMap[drvName]||'');
+      const loc     = clean(row[3]).replace(/\u00a0/g,'');
+      const typeVal = clean(row[4]);
+      const ll = parseFloat(row[5])||0;
+      const dp = parseFloat(row[6])||0;
+      const pf = row[7] !== null && row[7] !== undefined ? parseFloat(row[7])||+(ll-dp).toFixed(2) : +(ll-dp).toFixed(2);
+      if (!loc && !ll && !dp) continue;
+      sdEntries.push({id:idBase+5000+sdEntries.length, driver:drvName, driverNum:drvNum,
+        date, type:typeKey, route:'', locName:typeVal||loc, pu:loc, dl:'', cutoff:'',
+        ll, dp, pf:+pf.toFixed(2), notes:''});
+    }
+  });
+
+  OD_SHEETS.forEach(([sheetName, typeKey]) => {
+    if (!sheetNames.includes(sheetName)) return;
+    const rows = sheetRows(wb.Sheets[sheetName], 60);
+    for (let r = 6; r < rows.length; r++) {
+      const row = rows[r];
+      const drvName = clean(row[1]);
+      if (!drvName || isSkip(drvName)) continue;
+      const date = fmtDate(row[2]);
+      if (!date) continue;
+      const drvNumRaw = row[0];
+      const drvNum = drvNumRaw ? String(Math.round(Number(drvNumRaw)||0)||drvNumRaw) : (driverMap[drvName]||'');
+      const account = clean(row[3]);
+      const pu      = clean(row[4]);
+      const dl      = clean(row[5]);
+      const ll = parseFloat(row[6])||0;
+      const dp = parseFloat(row[7])||0;
+      const pf = row[8] !== null && row[8] !== undefined ? parseFloat(row[8])||+(ll-dp).toFixed(2) : +(ll-dp).toFixed(2);
+      if (!account && !ll && !dp) continue;
+      sdEntries.push({id:idBase+5000+sdEntries.length, driver:drvName, driverNum:drvNum,
+        date, type:typeKey, route:'', locName:account, pu, dl, cutoff:'',
+        ll, dp, pf:+pf.toFixed(2), notes:''});
+    }
+  });
+
+  // ── 5. SETTLEMENTS from Bdash Total Settlement Sheet ──────────────────────
+  const settlementList = [];
+  if (sheetNames.includes('Bdash Total Settlement Sheet')) {
+    const ws = wb.Sheets['Bdash Total Settlement Sheet'];
+    const rows = sheetRows(ws, 50);
+    // Row 2 (idx 1): pay period date at col G (idx 6)
+    if (!wkStart) wkStart = fmtDate(rows[1] && rows[1][6]);
+    // Row 3 (idx 2): settlement date at col F (idx 5)
+    if (!settDate) settDate = fmtDate(rows[2] && rows[2][5]);
+    // Row 5+ (idx 4+): First Name (col D=idx3), Last Name (col E=idx4), Weekly Total (col F=idx5)
+    for (let r = 4; r < rows.length; r++) {
+      const first = clean(rows[r][3]);
+      const last  = clean(rows[r][4]);
+      const total = rows[r][5];
+      if (!first || !last) continue;
+      if (typeof total !== 'number' || total === 0) continue;
+      // Normalize "Thomas, Jr." -> "Thomas"
+      const lastName = last.replace(/,\s*Jr\.?/i,'').trim();
+      const name = `${first} ${lastName}`.trim();
+      const gross = parseFloat(total) || 0;
+      const ded = calcDed(gross);
+      const drvRoutes = routeEntries.filter(e => e.driver === name);
+      const drvStats  = sdEntries.filter(e => e.driver === name);
+      settlementList.push({
+        name, num: driverMap[name] || '',
+        gross, routes: drvRoutes, stats: drvStats,
+        ...ded
+      });
+    }
+  }
+
+  // ── 6. Finalise + show results ─────────────────────────────────────────────
+  const total = routeEntries.length + sdEntries.length;
+  if (!total && !settlementList.length) {
+    setImportStatus('error','✕ No data could be extracted from this workbook',
+      'Make sure you are uploading a BDash Weekly Route to Driver Tracker workbook (.xlsm). ' +
+      'The file must have sheets named "Route Tracking", "Route Prices", and "Driver Sheet".',false);
+    return;
+  }
+
+  _importParsed = { routes: routeEntries, stats: sdEntries, discs: [], settlements: settlementList, wkStart, settDate };
+
+  // Build status preview
+  const driverSet = [...new Set([...routeEntries,...sdEntries].map(e=>e.driver))];
+  const totalLL   = [...routeEntries,...sdEntries].reduce((s,e)=>s+e.ll,0);
+  const totalDP   = [...routeEntries,...sdEntries].reduce((s,e)=>s+e.dp,0);
+
+  const bodyHTML = `
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px">
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Routes</div>
+        <div style="font-size:16px;font-weight:700;color:#4ade80">${routeEntries.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Stat/SD</div>
+        <div style="font-size:16px;font-weight:700;color:#93C5FD">${sdEntries.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Settlements</div>
+        <div style="font-size:16px;font-weight:700;color:#a5b4fc">${settlementList.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">LL Revenue</div>
+        <div style="font-size:12px;font-weight:700;color:#fbbf24">$${totalLL.toFixed(2)}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Driver Pay</div>
+        <div style="font-size:12px;font-weight:700;color:#fbbf24">$${totalDP.toFixed(2)}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;font-size:9px;color:#666">
+      Week of <span style="color:#6ee7b7">${wkStart||'—'}</span>
+      &nbsp;·&nbsp; Settlement <span style="color:#6ee7b7">${settDate||'—'}</span>
+      &nbsp;·&nbsp; ${driverSet.length} drivers: <span style="color:#aaa">${driverSet.join(', ')}</span>
+    </div>
+    <div style="background:#111;border:1px solid #222;border-radius:3px;padding:8px 12px;margin-bottom:6px">
+      <div style="font-size:9px;color:#555;margin-bottom:4px">Sheets successfully read:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${['Driver Sheet','Route Tracking','Route Prices',...STAT_SHEET_MAP.filter(([n])=>sheetNames.includes(n)).map(([n])=>n),'Bdash Total Settlement Sheet']
+          .filter(n=>sheetNames.includes(n))
+          .map(n=>`<span style="font-size:9px;padding:1px 7px;border-radius:2px;background:#0a1a0a;border:1px solid #14532d;color:#4ade80">${n}</span>`).join('')}
+      </div>
+    </div>
+    ${settlementList.length ? `<div style="font-size:9px;color:#6ee7b7;margin-top:6px">✓ ${settlementList.length} driver settlements pre-computed from Bdash Total Settlement Sheet</div>` : ''}
+    <div style="font-size:9px;color:#fbbf24;margin-top:4px">⚠ Choose import mode below: "Import as Finalized Period" will create a locked archive record with all settlements pre-filled.</div>`;
+
+  setImportStatus('ready',
+    `✓ Workbook parsed: ${routeEntries.length} routes · ${sdEntries.length} stat entries · ${settlementList.length} settlements`,
+    bodyHTML, true);
+}
+
+function setImportStatus(state, headerText, bodyHTML, showActions) {
+  const wrap  = document.getElementById('ll-import-status');
+  const hdr   = document.getElementById('ll-import-status-hdr');
+  const body  = document.getElementById('ll-import-status-body');
+  const acts  = document.getElementById('ll-import-actions');
+  wrap.style.display = '';
+  const c = {loading:{bg:'#0f1a0f',border:'#333',text:'#aaa'},error:{bg:'#1a0a0a',border:'#7f1d1d',text:'#f87171'},ready:{bg:'#0a1a0a',border:'#14532d',text:'#4ade80'}}[state]||{};
+  wrap.querySelector('div').style.borderColor = c.border||'#333';
+  hdr.style.background = c.bg||'#111';
+  hdr.style.color = c.text||'#aaa';
+  hdr.innerHTML = headerText;
+  body.innerHTML = bodyHTML;
+  acts.style.display = showActions ? '' : 'none';
+}
+
+function cancelLLImport() {
+  _importParsed = null; _importMeta = null;
+  document.getElementById('ll-import-status').style.display = 'none';
+  llDragLeave();
+}
+
+// ── Commit ────────────────────────────────────────────────────────────────────
+function commitLLImport() {
+  if (!_importParsed) { toast('No data to import.'); return; }
+  const { routes, stats, discs } = _importParsed;
+  const total = routes.length + stats.length + discs.length;
+
+  const mode = document.getElementById('ll-import-mode').value;
+  const pin  = prompt('Enter owner PIN to confirm import:');
+  if (!pin) return;
+  if (pin !== OWNER_PIN) { toast('Incorrect PIN.'); return; }
+
+  if (mode === 'week') {
+    if (!confirm(`Replace current week with ${routes.length} route + ${stats.length} stat entries${discs.length?' + '+discs.length+' discrepancies':''}?`)) return;
+    routeEntries = routes;
+    sdEntries    = stats;
+    if (discs.length) discEntries.unshift(...discs);
+    // Set the week picker to the imported week if available
+    if (_importParsed.wkStart) { document.getElementById('wk').value = _importParsed.wkStart; localStorage.setItem('rdt_wk', _importParsed.wkStart); }
+    save(); updateSum(); renderSdAll(); buildRouteTemplate();
+    toast(`✓ Imported ${total} entries — week set to ${_importParsed.wkStart||'current'}`);
+
+  } else if (mode === 'append') {
+    if (!confirm(`Append ${total} entries to the current week?`)) return;
+    routeEntries = [...routeEntries, ...routes];
+    sdEntries    = [...sdEntries,    ...stats];
+    if (discs.length) discEntries.unshift(...discs);
+    save(); updateSum(); renderSdAll();
+    toast(`✓ Appended ${total} entries`);
+
+  } else if (mode === 'archive') {
+    // Use wkStart from parsed data if available, else from UI input
+    const parsedWk   = (_importParsed.wkStart) || '';
+    const parsedSett = (_importParsed.settDate) || '';
+    let wk = document.getElementById('ll-import-wk').value || parsedWk;
+    if (!wk) { toast('Enter the Week Start Date for archive mode.'); document.getElementById('ll-import-wk').focus(); return; }
+    if (isLLWeekLocked(wk)) { toast('A finalized period for ' + wk + ' already exists.'); return; }
+    if (!confirm(`Import as finalized period for week of ${wk}?\n${routes.length} routes + ${stats.length} stat entries + ${(_importParsed.settlements||[]).length} driver settlements`)) return;
+
+    const wkEnd    = getWeekEnd(wk);
+    const settDate = parsedSett || calcSettlementDate(wk);
+
+    // Use pre-computed settlements from the workbook if available, otherwise calculate from entries
+    let finalSettlements;
+    if (_importParsed.settlements && _importParsed.settlements.length) {
+      finalSettlements = _importParsed.settlements;
+    } else {
+      const all = [...routes, ...stats];
+      const byDriver = {};
+      all.forEach(e => {
+        if (!byDriver[e.driver]) byDriver[e.driver] = {gross:0, num:e.driverNum, routes:[], stats:[]};
+        byDriver[e.driver].gross += e.dp;
+        if (e.type === 'route') byDriver[e.driver].routes.push(e);
+        else                    byDriver[e.driver].stats.push(e);
+      });
+      finalSettlements = Object.entries(byDriver)
+        .map(([name,d]) => {
+          if (name === OWNER_DRIVER) {
+            const totalPf = [...d.routes,...d.stats].reduce((s,e)=>s+(e.pf||0),0);
+            const profitShare = +(totalPf * OWNER_PROFIT_SHARE).toFixed(2);
+            const gross = +(d.gross + profitShare).toFixed(2);
+            const ded = calcDed(gross);
+            return {name, num:d.num, routes:d.routes, stats:d.stats, driverPay:+d.gross.toFixed(2), profitShare, ...ded};
+          }
+          return {name, num:d.num, routes:d.routes, stats:d.stats, ...calcDed(d.gross)};
+        })
+        .sort((a,b) => a.name.localeCompare(b.name));
+    }
+
+    const record = {
+      id: Date.now(), lockedAt: new Date().toISOString(),
+      wkStart: wk, wkEnd, settDate,
+      routeCount: routes.length, statCount: stats.length,
+      settlements: finalSettlements,
+      routeEntries: JSON.parse(JSON.stringify(routes)),
+      sdEntries:    JSON.parse(JSON.stringify(stats)),
+      importedFrom: fileName || 'Spreadsheet Upload'
+    };
+    if (discs.length) discEntries.unshift(...discs);
+    llArchive.unshift(record);
+    saveArchives(); save();
+    renderLLArchive();
+    toast(`✓ Finalized period for week of ${wk} — ${routes.length} routes + ${stats.length} stat entries + ${finalSettlements.length} settlements imported`);
+  }
+
+  _importParsed = null; _importMeta = null;
+  cancelLLImport();
+  toggleLLImport();
+}
+
+// ── Template download ─────────────────────────────────────────────────────────
+// ── JSON import (output of bdash_converter.py) ────────────────────────────────
+function parseJSON(data, fileName) {
+  const routes = (data.routeEntries || []).map((e,i) => ({...e, id: Date.now()+i}));
+  const stats  = (data.sdEntries   || []).map((e,i) => ({...e, id: Date.now()+5000+i}));
+  const settlements = data.settlements || [];
+  const wkStart = data.wkStart || '';
+  const settDate = data.settDate || '';
+  const stats2 = data._stats || {};
+
+  if (!routes.length && !stats.length && !settlements.length) {
+    setImportStatus('error','✕ Empty import file','The JSON file contained no route entries, stat entries, or settlements.',false);
+    return;
+  }
+
+  _importParsed = { routes, stats, discs:[], settlements, wkStart, settDate };
+
+  const driverSet = [...new Set([...routes,...stats].map(e=>e.driver))];
+  const totalLL   = [...routes,...stats].reduce((s,e)=>s+e.ll,0);
+  const totalDP   = [...routes,...stats].reduce((s,e)=>s+e.dp,0);
+
+  const bodyHTML = `
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px">
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Routes</div>
+        <div style="font-size:16px;font-weight:700;color:#4ade80">${routes.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Stat/SD</div>
+        <div style="font-size:16px;font-weight:700;color:#93C5FD">${stats.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Settlements</div>
+        <div style="font-size:16px;font-weight:700;color:#a5b4fc">${settlements.length}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">LL Revenue</div>
+        <div style="font-size:12px;font-weight:700;color:#fbbf24">$${totalLL.toFixed(2)}</div>
+      </div>
+      <div style="background:#111;border:1px solid #222;padding:7px;border-radius:2px;text-align:center">
+        <div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px">Driver Pay</div>
+        <div style="font-size:12px;font-weight:700;color:#fbbf24">$${totalDP.toFixed(2)}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;font-size:9px;color:#666">
+      Week of <span style="color:#6ee7b7">${wkStart||'—'}</span>
+      &nbsp;·&nbsp; Settlement <span style="color:#6ee7b7">${settDate||'—'}</span>
+      &nbsp;·&nbsp; ${driverSet.length} drivers: <span style="color:#aaa">${driverSet.slice(0,8).join(', ')}${driverSet.length>8?'…':''}</span>
+    </div>
+    ${settlements.length ? `<div style="font-size:9px;color:#6ee7b7">✓ ${settlements.length} driver settlements included from workbook totals</div>` : ''}
+    <div style="font-size:9px;color:#fbbf24;margin-top:4px">⚠ Select import mode below then click Confirm Import</div>`;
+
+  // Auto-fill the week date field
+  if (wkStart) document.getElementById('ll-import-wk').value = wkStart;
+
+  setImportStatus('ready',
+    `✓ ${fileName} — ${routes.length} routes · ${stats.length} stat entries · ${settlements.length} settlements`,
+    bodyHTML, true);
+}
+
+// ── Converter script download ─────────────────────────────────────────────────
+function downloadConverterScript() {
+  const script = `#!/usr/bin/env python3
+"""
+BDash Logistics — Workbook Converter
+Converts Weekly_Route_to_Driver_Tracker.xlsm → workbook_import.json
+for import into the BDash Driver Tracker dashboard.
+
+Usage:
+  python bdash_converter.py <path_to_your_workbook.xlsm>
+
+Requirements:
+  pip install openpyxl
+
+Output:
+  workbook_import.json  (drop this file into the Import panel in the dashboard)
+"""
+import sys, json, re, datetime
+from pathlib import Path
+
+try:
+    from openpyxl import load_workbook
+except ImportError:
+    print("ERROR: openpyxl not installed. Run:  pip install openpyxl")
+    sys.exit(1)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python bdash_converter.py <workbook.xlsm>")
+        sys.exit(1)
+
+    path = Path(sys.argv[1])
+    if not path.exists():
+        print(f"ERROR: File not found: {path}")
+        sys.exit(1)
+
+    print(f"Reading {path.name}...")
+    wb = load_workbook(str(path), keep_vba=False, data_only=True)
+    sheets = wb.sheetnames
+
+    def fmt(d):
+        if isinstance(d, datetime.datetime): return d.strftime('%Y-%m-%d')
+        if isinstance(d, str):
+            for f in ['%Y-%m-%d','%m/%d/%Y','%m/%d/%y']:
+                try: return datetime.datetime.strptime(d.strip(),f).strftime('%Y-%m-%d')
+                except: pass
+        return None
+
+    # 1. Drivers
+    driver_map = {}
+    if 'Driver Sheet' in sheets:
+        ws = wb['Driver Sheet']
+        for r in range(8, 42):
+            n = ws.cell(r,2).value; num = ws.cell(r,3).value
+            if n and str(n).strip() not in ('','Choose Driver'):
+                driver_map[str(n).strip()] = str(int(num)) if isinstance(num,(int,float)) else str(num or '')
+    print(f"  Drivers: {len(driver_map)}")
+
+    # 2. Route Prices
+    DCOLS = {'sun':(3,4),'mon':(5,6),'tue':(7,8),'wed':(9,10),'thu':(11,12),'fri':(13,14),'sat':(15,16)}
+    route_prices = {}
+    if 'Route Prices' in sheets:
+        ws = wb['Route Prices']
+        for r in range(6, 55):
+            rn = ws.cell(r,2).value
+            if not rn or not isinstance(rn,str): continue
+            route_prices[rn.strip().upper()] = {}
+            for day,(lc,dc) in DCOLS.items():
+                ll = ws.cell(r,lc).value; dp = ws.cell(r,dc).value
+                if ll or dp:
+                    route_prices[rn.strip().upper()][day] = [float(ll or 0),float(dp or 0)]
+
+    # 3. Route Tracking
+    DAYS = ['sun','mon','tue','wed','thu','fri','sat']
+    route_entries, wk_start, sett_date = [], None, None
+    if 'Route Tracking' in sheets:
+        ws = wb['Route Tracking']
+        day_dates = [fmt(ws.cell(6,c).value) for c in range(3,10)]
+        wk_start  = day_dates[0]
+        sett_date = fmt(ws.cell(5,6).value)
+        for r in range(8, 42):
+            rn = ws.cell(r,2).value
+            if not rn or not isinstance(rn,str) or rn.strip()=='0': continue
+            rn = rn.strip()
+            for di, day in enumerate(DAYS):
+                drv = ws.cell(r,3+di).value
+                if not drv or str(drv).strip() in ('','Choose Driver','Choose Driver '): continue
+                drv = str(drv).strip(); date = day_dates[di]
+                if not date: continue
+                prices = route_prices.get(rn.upper(),{}).get(day,[0,0])
+                ll,dp = prices
+                route_entries.append({'id':10000+len(route_entries),'driver':drv,
+                    'driverNum':driver_map.get(drv,''),'date':date,'type':'route','route':rn,
+                    'locName':'','pu':'','dl':'','cutoff':'','ll':ll,'dp':dp,'pf':round(ll-dp,2),'notes':''})
+    print(f"  Route entries: {len(route_entries)}")
+
+    # 4. Stat sheets — using exact confirmed column positions:
+    # Bako/Dekalb/Aptive: col1=DrvNum, col2=DrvName, col3=Date, col4=PickupLoc, col5=Type, col6=LL, col7=DP, col8=Profit
+    # On-Demand:          col1=DrvNum, col2=DrvName, col3=Date, col4=Account,    col5=Pickup, col6=Delivery, col7=LL, col8=DP, col9=Profit
+    stat_entries = []
+
+    BAKO_DEKALB_APTIVE = [
+        ('Bako Monday','bako'),('Bako Tuesday','bako'),('Bako Wednesday','bako'),
+        ('Bako Thursday','bako'),('Bako Friday','bako'),
+        ('Dekalb Monday','dekalb'),('Dekalb Tuesday','dekalb'),('Dekalb Wednesday','dekalb'),
+        ('Dekalb Thursday','dekalb'),('Dekalb Friday','dekalb'),
+        ('Aptive Sunday','aptive-sun'),
+        ('Aptive Monday','aptive-wkd'),('Aptive Tuesday','aptive-wkd'),
+        ('Aptive Wednesday','aptive-wkd'),('Aptive Thursday','aptive-wkd'),('Aptive Friday','aptive-wkd'),
+    ]
+    for sname, tkey in BAKO_DEKALB_APTIVE:
+        if sname not in sheets: continue
+        ws = wb[sname]
+        for r in range(7, 60):
+            dn = ws.cell(r,2).value
+            if not dn or str(dn).strip() in ('','Choose Driver','Choose Driver '): continue
+            dt = fmt(ws.cell(r,3).value)
+            if not dt: continue
+            dnum_raw = ws.cell(r,1).value
+            dnum = str(int(dnum_raw)) if isinstance(dnum_raw,(int,float)) and dnum_raw else driver_map.get(str(dn).strip(),'')
+            loc = str(ws.cell(r,4).value or '').replace('\\xa0','').strip()
+            if loc in ('Choose Pick Up Location','Choose Pick Up Location '): loc=''
+            tv  = str(ws.cell(r,5).value or '').strip()
+            ll  = float(ws.cell(r,6).value or 0)
+            dp  = float(ws.cell(r,7).value or 0)
+            pf  = float(ws.cell(r,8).value or 0) or round(ll-dp,2)
+            if not loc and not ll and not dp: continue
+            stat_entries.append({'id':15000+len(stat_entries),'driver':str(dn).strip(),'driverNum':dnum,
+                'date':dt,'type':tkey,'route':'','locName':tv or loc,'pu':loc,'dl':'','cutoff':'',
+                'll':ll,'dp':dp,'pf':round(pf,2),'notes':''})
+
+    OD_SHEETS = [
+        ('On-Demand Sunday','ondemand'),('On-Demand Monday','ondemand'),('On-Demand Tuesday','ondemand'),
+        ('On-Demand Wednesday','ondemand'),('On-Demand Thursday','ondemand'),
+        ('On-Demand Friday','ondemand'),('On-Demand Saturday','ondemand'),
+    ]
+    for sname, tkey in OD_SHEETS:
+        if sname not in sheets: continue
+        ws = wb[sname]
+        for r in range(7, 60):
+            dn = ws.cell(r,2).value
+            if not dn or str(dn).strip() in ('','Choose Driver','Choose Driver '): continue
+            dt = fmt(ws.cell(r,3).value)
+            if not dt: continue
+            dnum_raw = ws.cell(r,1).value
+            dnum = str(int(dnum_raw)) if isinstance(dnum_raw,(int,float)) and dnum_raw else driver_map.get(str(dn).strip(),'')
+            account = str(ws.cell(r,4).value or '').strip()
+            pu      = str(ws.cell(r,5).value or '').strip()
+            dl      = str(ws.cell(r,6).value or '').strip()
+            ll      = float(ws.cell(r,7).value or 0)
+            dp      = float(ws.cell(r,8).value or 0)
+            pf      = float(ws.cell(r,9).value or 0) if ws.cell(r,9).value else round(ll-dp,2)
+            if not account and not ll and not dp: continue
+            stat_entries.append({'id':15000+len(stat_entries),'driver':str(dn).strip(),'driverNum':dnum,
+                'date':dt,'type':tkey,'route':'','locName':account,'pu':pu,'dl':dl,'cutoff':'',
+                'll':ll,'dp':dp,'pf':round(pf,2),'notes':''})
+
+    print(f"  Stat entries:  {len(stat_entries)}")
+
+    # 5. Settlements
+    OWNER_DRIVER = 'Barry Dunn'
+    OWNER_PROFIT_SHARE = 0.65
+
+    def calc_ded(gross):
+        misc=0 if gross<200 else 5
+        of_=14.25 if gross>400 else (10.25 if gross>200 else 0)
+        cnf=round(gross*0.0132,2) if gross>=200 else 0
+        ins=0 if gross<200 else 2
+        return {'misc':misc,'of':of_,'cnf':cnf,'ins':ins,'net':round(gross-misc-of_-cnf-ins,2)}
+
+    settlements = []
+    if 'Bdash Total Settlement Sheet' in sheets:
+        ws = wb['Bdash Total Settlement Sheet']
+        if not wk_start: wk_start = fmt(ws.cell(2,7).value)
+        if not sett_date: sett_date = fmt(ws.cell(3,6).value)
+        for r in range(5, 50):
+            fn=ws.cell(r,4).value; ln=ws.cell(r,5).value; tot=ws.cell(r,6).value
+            if not fn or not ln or not isinstance(tot,(int,float)) or tot==0: continue
+            ln2 = re.sub(r',\\s*Jr\\.?','',str(ln)).strip()
+            name = f"{fn} {ln2}".strip(); gross = float(tot)
+            ded = calc_ded(gross)
+            drv_routes = [e for e in route_entries if e['driver']==name]
+            drv_stats  = [e for e in stat_entries  if e['driver']==name]
+            entry = {'name':name,'num':driver_map.get(name,''),'gross':round(gross,2),
+                'routes':drv_routes,'stats':drv_stats,**ded}
+            if name == OWNER_DRIVER:
+                all_pf = sum(e.get('pf',0) for e in drv_routes+drv_stats)
+                profit_share = round(all_pf * OWNER_PROFIT_SHARE, 2)
+                entry['profitShare'] = profit_share
+                entry['totalComp']   = round(ded['net'] + profit_share, 2)
+            settlements.append(entry)
+    print(f"  Settlements:   {len(settlements)}")
+    barry = next((s for s in settlements if s['name']==OWNER_DRIVER), None)
+    if barry and 'profitShare' in barry:
+        print(f"  Barry profit share: \${barry['profitShare']:.2f}  Total comp: \${barry['totalComp']:.2f}")
+
+    result = {'_bdashImport':True,'_version':1,'wkStart':wk_start,'wkEnd':None,'settDate':sett_date,
+        'routeEntries':route_entries,'sdEntries':stat_entries,'settlements':settlements,'driverMap':driver_map,
+        '_stats':{'routes':len(route_entries),'stat':len(stat_entries),'settlements':len(settlements),'drivers':len(driver_map)}}
+
+    out = path.parent / 'workbook_import.json'
+    with open(out,'w') as f:
+        json.dump(result, f, indent=2, default=str)
+    print(f"\\n✓ Saved: {out}")
+    print(f"  Drop  workbook_import.json  into the BDash import panel.")
+
+if __name__ == '__main__':
+    main()
+`;
+  const blob = new Blob([script], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bdash_converter.py';
+  a.click();
+  toast('Converter script downloaded — run it with: python bdash_converter.py <your_workbook.xlsm>');
+}
+
+function downloadImportTemplate() {
+  const hdrs = ['Driver','Driver #','Date','Type','Route/Location','Pickup','Delivery','Pickup By / Access Until','LL Rate','Driver Pay','Co Profit','Notes'];
+  const examples = [
+    ['Barry Dunn','55513','2026-03-02','Route','LLGA71','','','','213.00','192.00','21.00',''],
+    ['Barry Dunn','55513','2026-03-03','Bako OD','Bako 1st Atlanta Area','Optimum Podiatry 5077 Dallas Hwy','FedEx','By 10AM','30.00','15.00','15.00','Rush'],
+    ['Myisha Green-Moore','21385','2026-03-03','Aptive Sun','Aptive Atlanta','123 Main St','','By 10AM','40.00','25.00','15.00',''],
+    ['Barry Dunn','55513','2026-03-04','On-Demand','CBLGA2','CBL Pickup','Lab Drop','','40.00','25.00','15.00',''],
+    ['Barry Dunn','55513','2026-03-04','Misc','Other Lab','5 Main St','Drop Site','By 5PM','50.00','30.00','20.00','Rush run'],
+  ];
+  dlCSV([hdrs,...examples], 'LL_Import_Template.csv');
+  toast('Template downloaded. Fill it in and drag it back to import.');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CAMELO SYNC
+// Calls the Camelo API directly from the browser using the user's API token.
+// Pulls team members (names, emails, phones) and/or the current week's schedule.
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _cameloData = null; // holds fetched data pending apply
+
+function openCameloSyncSchedule() {
+  openCameloSync();
+  document.getElementById('camelo-sync-type').value = 'schedules';
+}
+
+function openCameloSync() {
+  const modal = document.getElementById('camelo-modal');
+  try {
+    const p = JSON.parse(localStorage.getItem('camelo_prefs') || '{}');
+    if (p.token) document.getElementById('camelo-token').value = p.token;
+  } catch(e) {}
+  modal.style.display = '';
+  document.getElementById('camelo-status').style.display  = 'none';
+  document.getElementById('camelo-results').style.display = 'none';
+  document.getElementById('camelo-apply-btn').style.display = 'none';
+  _cameloData = null;
+}
+
+function closeCameloSync() {
+  document.getElementById('camelo-modal').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  const m = document.getElementById('camelo-modal');
+  if (m && e.target === m) closeCameloSync();
+});
+
+function saveCameloPrefs() {
+  const token = document.getElementById('camelo-token').value.trim();
+  localStorage.setItem('camelo_prefs', JSON.stringify({ token }));
+  toast('Camelo token saved.');
+}
+
+function setCameloStatus(type, msg) {
+  const el = document.getElementById('camelo-status');
+  el.style.display = '';
+  const colors = {
+    loading: { bg:'#F0F9FF', border:'#BAE6FD', color:'#0369A1' },
+    error:   { bg:'#FEF2F2', border:'#FECACA', color:'#DC2626' },
+    success: { bg:'#F0FDF4', border:'#BBF7D0', color:'#16A34A' },
+  };
+  const c = colors[type] || colors.loading;
+  el.style.background   = c.bg;
+  el.style.border       = `1.5px solid ${c.border}`;
+  el.style.color        = c.color;
+  el.style.borderRadius = '4px';
+  el.innerHTML = msg;
+}
+
+async function runCameloSync() {
+  const token    = document.getElementById('camelo-token').value.trim();
+  const syncType = document.getElementById('camelo-sync-type').value;
+
+  if (!token) { setCameloStatus('error', '✕ Please enter your Camelo API token.'); return; }
+
+  setCameloStatus('loading', '⏳ Connecting to Camelo...');
+  document.getElementById('camelo-results').style.display = 'none';
+  document.getElementById('camelo-apply-btn').style.display = 'none';
+  _cameloData = null;
+
+  const GRAPHQL_URL = 'https://api.camelohq.com/graphql';
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  async function gql(query, variables={}) {
+    const res = await fetch(GRAPHQL_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>'');
+      throw new Error(`Camelo API returned ${res.status}: ${txt.slice(0,200)}`);
+    }
+    const data = await res.json();
+    if (data.errors && data.errors.length) throw new Error(data.errors[0].message);
+    return data.data;
+  }
+
+  try {
+    let members = [], schedules = [];
+
+    // ── Fetch team members via GraphQL ────────────────────────────────────
+    if (syncType === 'members' || syncType === 'both') {
+      setCameloStatus('loading', '⏳ Fetching team members from Camelo...');
+
+      const data = await gql(`{
+        users(first: 100) {
+          nodes {
+            id
+            firstName
+            lastName
+            email
+            phoneNumber
+            state
+          }
+        }
+      }`);
+
+      const nodes = data?.users?.nodes || [];
+      members = nodes
+        .filter(u => u.state !== 'DELETED' && !u.sampleUser)
+        .map(u => ({
+          name:  `${u.firstName||''} ${u.lastName||''}`.trim(),
+          email: u.email || '',
+          phone: u.phoneNumber || '',
+          cameloId: u.id,
+        }))
+        .filter(m => m.name);
+    }
+
+    // ── Fetch this week's schedules via GraphQL ───────────────────────────
+    if (syncType === 'schedules' || syncType === 'both') {
+      setCameloStatus('loading', '⏳ Fetching schedule IDs from Camelo...');
+
+      // Step 1: get scheduleIds from abilities query
+      const abilitiesData = await gql(`{ abilities { scheduleIds } }`);
+      const scheduleIds = abilitiesData?.abilities?.scheduleIds || [];
+      if (!scheduleIds.length) throw new Error('No schedules found in your Camelo account.');
+
+      // Step 2: get current week range
+      const now = new Date();
+      const sun = new Date(now); sun.setDate(now.getDate() - now.getDay());
+      const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+      const fmtDT = d => d.toISOString().replace('.000','');
+
+      setCameloStatus('loading', '⏳ Fetching shifts from Camelo...');
+
+      // Step 3: query scheduleData with correct filter fields
+      const data = await gql(`query GetScheduleData($filter: ScheduleDataFilter!) {
+        scheduleData(filter: $filter) {
+          shifts {
+            id
+            title
+            note
+            startTime
+            endTime
+            assignee {
+              firstName
+              lastName
+              email
+            }
+            jobSite {
+              name
+            }
+          }
+        }
+      }`, {
+        filter: {
+          scheduleIds,
+          fromTime: fmtDT(sun),
+          toTime:   fmtDT(sat),
+        }
+      });
+
+      schedules = data?.scheduleData?.shifts || [];
+    }
+
+    _cameloData = { members, schedules, syncType };
+
+    // ── Build preview ─────────────────────────────────────────────────────
+    const resultsEl = document.getElementById('camelo-results');
+    resultsEl.style.display = '';
+    let html = '';
+
+    if (members.length) {
+      html += `<div style="background:#F0F4FF;padding:8px 12px;font-family:monospace;font-size:10px;font-weight:700;color:#4F46E5;border-bottom:1px solid #eee">${members.length} TEAM MEMBERS</div>`;
+      html += members.map(m => {
+        const inRoster = DRIVERS.find(d => d.n.toLowerCase() === m.name.toLowerCase());
+        if (!inRoster) return `<div style="display:flex;align-items:center;gap:10px;padding:5px 12px;border-bottom:1px solid #f5f5f5;font-size:10px;opacity:0.35">
+          <span style="font-family:monospace;font-size:9px;padding:1px 6px;border-radius:2px;background:#f0f0f0;color:#999">skip</span>
+          <span style="min-width:160px;color:#aaa">${m.name}</span>
+          <span style="color:#ccc;font-size:10px">${m.email||'—'}</span>
+        </div>`;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #f5f5f5;font-size:11px">
+          <span style="font-family:monospace;font-size:9px;padding:1px 6px;border-radius:2px;background:#DCFCE7;color:#166534">✓ match</span>
+          <span style="font-weight:600;min-width:160px">${m.name}</span>
+          <span style="color:#888;font-size:10px">${m.email||'—'}</span>
+          <span style="color:#aaa;font-size:10px;margin-left:auto">${m.phone||''}</span>
+        </div>`;
+      }).join('');
+    }
+
+    if (schedules.length) {
+      const SDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      html += `<div style="background:#F0FDF4;padding:8px 12px;font-family:monospace;font-size:10px;font-weight:700;color:#16A34A;border-bottom:1px solid #eee">${schedules.length} SCHEDULED SHIFTS</div>`;
+      html += schedules.slice(0,50).map(s => {
+        const name = s.assignee ? `${s.assignee.firstName||''} ${s.assignee.lastName||''}`.trim() : '—';
+        const date = s.startTime ? s.startTime.slice(0,10) : '';
+        const dayName = date ? SDAYS[new Date(date+'T12:00:00').getDay()] : '';
+        const rawTitle = s.title || s.note || (s.jobSite && s.jobSite.name) || '—';
+        const cleanTitle = rawTitle
+          .replace(/\s+(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?)[^a-zA-Z0-9]*/gi,' ')
+          .replace(/\s+M(-|\/)F\b/gi,'').replace(/\s+M,W\b/gi,'').replace(/\s+T,?TH\b/gi,'')
+          .replace(/\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[-–,\s]*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\b/gi,'')
+          .trim();
+        const inRoster = DRIVERS.find(d => d.n.toLowerCase() === name.toLowerCase());
+        const inTMPL = TMPL.find(t => t.r.toLowerCase() === cleanTitle.toLowerCase());
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid #f5f5f5;font-size:10px">
+          <span style="font-family:monospace;font-size:9px;width:30px;color:#888">${dayName}</span>
+          <span style="font-weight:600;min-width:140px;${!inRoster?'color:#bbb':''}">${name}</span>
+          <span style="color:#4F46E5;min-width:100px">${cleanTitle}<span style="color:#bbb;font-size:9px"> (${rawTitle})</span></span>
+          <span style="font-family:monospace;font-size:9px;margin-left:auto;padding:1px 5px;border-radius:2px;background:${inTMPL?'#DCFCE7':'#FEF9C3'};color:${inTMPL?'#166534':'#854D0E'}">${inTMPL?'✓ route':'? route'}</span>
+        </div>`;
+      }).join('');
+      if (schedules.length > 50) html += `<div style="padding:6px 12px;font-size:9px;color:#aaa">... and ${schedules.length-50} more shifts</div>`;
+    }
+
+    if (!members.length && !schedules.length) {
+      html = '<div style="padding:20px;text-align:center;color:#aaa;font-size:11px">No data returned. Check your token.</div>';
+    }
+
+    resultsEl.innerHTML = html;
+    document.getElementById('camelo-apply-btn').style.display = '';
+    setCameloStatus('success',
+      `✓ Fetched ${members.length} member${members.length!==1?'s':''} and ${schedules.length} shift${schedules.length!==1?'s':''} from Camelo.`);
+    saveCameloPrefs();
+
+  } catch(err) {
+    let msg = err.message;
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
+      msg = `✕ CORS blocked — your browser is preventing the request because the dashboard is a local file.<br><br>
+        <strong>Fix:</strong> Open Chrome and visit <code style="background:#f5f5f5;padding:2px 5px;border-radius:3px">chrome://flags/#block-insecure-private-network-requests</code> and set it to <strong>Disabled</strong>, or use the dashboard from a web server instead of a local file.`;
+    } else {
+      msg = `✕ ${msg}`;
+    }
+    setCameloStatus('error', msg);
+  }
+}
+
+function applyCameloData() {
+  if (!_cameloData) return;
+  const { members, schedules, syncType } = _cameloData;
+  let added = 0, updated = 0;
+
+  // ── Merge members into DRIVERS ──────────────────────────────────────────
+  if (members.length && (syncType === 'members' || syncType === 'both')) {
+    members.forEach(m => {
+      if (!m.name) return;
+      const idx = DRIVERS.findIndex(d => d.n.toLowerCase() === m.name.toLowerCase());
+      if (idx >= 0) {
+        // Only update existing roster drivers — never add new ones from Camelo
+        if (m.email) DRIVERS[idx].email = m.email;
+        if (m.phone) DRIVERS[idx].phone = m.phone;
+        updated++;
+      }
+      // Ignore anyone not already in the roster
+    });
+    save();
+    refreshAllDriverDropdowns();
+    renderDriverTable();
+  }
+
+  // ── Sync schedule to Weekly Routes template ─────────────────────────────
+  if (schedules.length && (syncType === 'schedules' || syncType === 'both')) {
+    const DAYS_MAP = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
+    let routesMapped = 0, routesNotFound = [];
+
+    // Auto-set week picker from first shift date
+    const firstDate = schedules.find(s => s.startTime)?.startTime?.slice(0,10);
+    if (firstDate) {
+      const d = new Date(firstDate + 'T12:00:00');
+      d.setDate(d.getDate() - d.getDay()); // back to Sunday
+      document.getElementById('wk').value = d.toISOString().slice(0,10);
+    }
+
+    schedules.forEach(s => {
+      if (!s.assignee || !s.startTime) return;
+      const driverName = `${s.assignee.firstName||''} ${s.assignee.lastName||''}`.trim();
+      if (!driverName) return;
+
+      // Only apply to drivers already in roster
+      const rosterDriver = DRIVERS.find(d => d.n.toLowerCase() === driverName.toLowerCase());
+      if (!rosterDriver) return;
+
+      // Strip day-of-week suffixes from Camelo shift titles before matching
+      // e.g. "LLGA10 Mon-Thurs" → "LLGA10", "BAKOGA1 M-F" → "BAKOGA1", "NateraGA6 M,W" → "NateraGA6"
+      function cleanRouteTitle(title) {
+        return title
+          .replace(/\s+M-F\b/gi, '')
+          .replace(/\s+M,W\b/gi, '')
+          .replace(/\s+T,?TH\b/gi, '')
+          .replace(/\s+(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?)(\s*[-–,]\s*(Mon(day)?|Tue(s(day)?)?|Wed(nesday)?|Thu(rs(day)?)?|Fri(day)?|Sat(urday)?|Sun(day)?))*\s*/gi, ' ')
+          .replace(/\s+\d+x\/week\b/gi, '').replace(/\s+/g,' ').trim();
+      }
+
+      const routeKey = cleanRouteTitle(s.title || s.note || (s.jobSite && s.jobSite.name) || '');
+
+      // Find which day of the week this shift falls on
+      const date = s.startTime.slice(0, 10);
+      const dayIdx = new Date(date + 'T12:00:00').getDay();
+      const dayKey = DAYS_MAP[dayIdx];
+
+      if (routeKey) {
+        // Find matching route in TMPL (case-insensitive)
+        const tmplRow = TMPL.find(t => t.r.toLowerCase() === routeKey.toLowerCase());
+        if (tmplRow) {
+          // Update driver for that route on that day, keeping existing prices
+          const existing = tmplRow[dayKey];
+          const ll = existing ? existing[1] : 0;
+          const dp = existing ? existing[2] : 0;
+          // Parse start/end times from Camelo shift (HH:MM format)
+          const st = s.startTime ? s.startTime.slice(11,16) : (existing ? existing[3]||'' : '');
+          const et = s.endTime   ? s.endTime.slice(11,16)   : (existing ? existing[4]||'' : '');
+          tmplRow[dayKey] = [rosterDriver.n, ll, dp, st, et];
+          routesMapped++;
+        } else {
+          if (!routesNotFound.includes(routeKey)) routesNotFound.push(routeKey);
+        }
+      } else {
+        // No route name in shift — just note that this driver is working this day
+        // Can't map to specific route without a title, skip silently
+      }
+    });
+
+    save();
+    buildRouteTemplate();
+
+    if (routesNotFound.length) {
+      const msg = `✓ Mapped ${routesMapped} shift${routesMapped!==1?'s':''} to routes.\n\nCould not match these Camelo shift titles to routes in the tracker:\n• ${routesNotFound.join('\n• ')}\n\nMake sure shift titles in Camelo match route names exactly (e.g. "LLGA30").`;
+      alert(msg);
+    } else if (routesMapped) {
+      toast(`✓ ${routesMapped} shift${routesMapped!==1?'s':''} synced to Weekly Routes template.`);
+    } else {
+      toast('⚠ No shifts could be matched to routes. Make sure Camelo shift titles match route names (e.g. "LLGA30").');
+    }
+  }
+
+  closeCameloSync();
+  sw('drivers');
+  const msg = updated ? `${updated} driver${updated!==1?'s':''} updated from Camelo` : 'roster already up to date';
+  toast(`✓ Camelo sync complete — ${msg}.`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 let sunPickerYear=0,sunPickerMonth=0;
 function toggleSunPicker(){
   const p=document.getElementById('sun-picker');
@@ -5531,6 +7278,14 @@ document.getElementById('sd-date').value=today.toISOString().slice(0,10);
 load();
 loadArchives();
 loadDispatchPrefs();
+// Pre-load Camelo credentials if not already saved
+(function(){
+  const p = JSON.parse(localStorage.getItem('camelo_prefs')||'{}');
+  if(!p.token) localStorage.setItem('camelo_prefs', JSON.stringify({
+    token:'666027cb0bd50bc49a7b994a261e095294a35f9f650635aae057e33aada1c7b9',
+    team:'Fe66d7542-a914-4cec-a065-42fc9d8c8d80'
+  }));
+})();
 loadAm();
 initSdDrivers();
 buildRouteTemplate();
